@@ -106,3 +106,33 @@ dev                   ●──────────●───────�
 3. **`feature/<tên-chức-năng>`**: Mỗi tính năng, module hoặc tầng kiến trúc sẽ tách thành 1 branch riêng từ `dev`:
    - Ví dụ: `feature/infrastructure-ef-core`, `feature/auth-jwt`, `feature/project-crud`, `feature/frontend-dashboard`...
    - Sau khi hoàn thành và test xong trên feature branch, sẽ merge về `dev`.
+
+
+---
+
+## 6. Chi tiết Tầng Hạ Tầng (Infrastructure) & Entity Framework Core
+
+Tầng `Infrastructure` giải quyết các bài toán kỹ thuật cụ thể mà tầng `Domain` và `Application` không quan tâm:
+
+### 1. Cấu hình DbContext (`ApplicationDbContext.cs`)
+- **Global Query Filter (Soft Delete)**:
+  ```csharp
+  modelBuilder.Entity<ProjectTask>().HasQueryFilter(e => !e.IsDeleted);
+  ```
+  *Ý nghĩa:* Mọi câu lệnh LINQ như `_context.ProjectTasks.ToList()` đều tự động gắn thêm điều kiện `WHERE IsDeleted = 0`. Lập trình viên không lo vô tình lấy phải dữ liệu đã bị xóa.
+- **Fluent API Relationships**:
+  - `Project` 1 - N `ProjectMember` (Cascade Delete khi xóa hẳn project).
+  - `User` 1 - N `ProjectMember` (Restrict Delete để tránh xóa nhầm user kéo theo mất dữ liệu lịch sử).
+  - `ProjectTask` Self-referencing: Một task có thể trỏ tới `ParentTaskId` và chứa danh sách `SubTasks`.
+  - `ChangeTracker Audit`: Tự động điền ngày giờ `UpdatedAt` khi bất kỳ entity nào bị cập nhật.
+
+### 2. Triển khai Generic Repository (`Repository<T>`)
+- Tách biệt logic truy xuất Entity Framework:
+  - `GetByIdAsync`, `GetAllAsync`, `FindAsync` (dùng `AsNoTracking()` để tăng tốc độ truy vấn chỉ đọc).
+  - `DeleteAsync`: Thực hiện Soft Delete (`entity.IsDeleted = true`).
+
+### 3. Dependency Injection mở rộng (`DependencyInjection.cs`)
+- Đăng ký `AddInfrastructureServices` gọn gàng:
+  - `services.AddScoped(typeof(IRepository<>), typeof(Repository<>));`
+  - `services.AddScoped<IUnitOfWork, UnitOfWork>();`
+  - Controller hoặc Service chỉ cần tiêm `IRepository<ProjectTask>` qua Constructor.
