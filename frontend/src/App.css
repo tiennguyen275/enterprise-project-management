@@ -911,3 +911,29 @@ input:focus, textarea:focus {
   color: #475569;
   white-space: pre-line;
 }
+
+
+/* Drag and Drop visual feedback */
+.kanban-column.column-drag-over {
+  background: #e0e7ff;
+  border: 2px dashed var(--primary);
+}
+
+.kanban-task-card.is-dragging {
+  opacity: 0.4;
+  transform: scale(0.96);
+  cursor: grabbing;
+}
+
+.kanban-task-card[draggable="true"] {
+  cursor: grab;
+}
+
+.drag-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.35rem;
+}
