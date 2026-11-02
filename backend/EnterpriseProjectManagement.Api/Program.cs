@@ -1,4 +1,8 @@
+using System.Text;
+using EnterpriseProjectManagement.Application;
 using EnterpriseProjectManagement.Infrastructure;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -6,8 +10,37 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 
-// Đăng ký Infrastructure (EF Core, DbContext, Repository, UnitOfWork)
+// Đăng ký Application Services (AuthService, Business logic)
+builder.Services.AddApplicationServices();
+
+// Đăng ký Infrastructure (EF Core, DbContext, Repository, UnitOfWork, JWT Token Generator)
 builder.Services.AddInfrastructureServices(builder.Configuration);
+
+// Cấu hình JWT Authentication
+var secret = builder.Configuration["JwtSettings:Secret"] ?? "EnterpriseProjectManagementSuperSecretKey2026!@#$%";
+var issuer = builder.Configuration["JwtSettings:Issuer"] ?? "EnterpriseProjectManagement";
+var audience = builder.Configuration["JwtSettings:Audience"] ?? "EnterpriseProjectManagement";
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = issuer,
+        ValidAudience = audience,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret))
+    };
+});
+
+builder.Services.AddAuthorization();
 
 // Cấu hình CORS để Frontend ReactJS có thể gọi API
 builder.Services.AddCors(options =>
@@ -33,6 +66,7 @@ app.UseHttpsRedirection();
 
 app.UseCors("AllowReactApp");
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();

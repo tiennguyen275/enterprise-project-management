@@ -136,3 +136,33 @@ Tầng `Infrastructure` giải quyết các bài toán kỹ thuật cụ thể m
   - `services.AddScoped(typeof(IRepository<>), typeof(Repository<>));`
   - `services.AddScoped<IUnitOfWork, UnitOfWork>();`
   - Controller hoặc Service chỉ cần tiêm `IRepository<ProjectTask>` qua Constructor.
+
+
+---
+
+## 7. Chi tiết Phân Hệ Xác Thực & Phân Quyền (Auth & JWT)
+
+Được triển khai trên nhánh `feature/auth-jwt` và tích hợp vào `dev`:
+
+### 1. Luồng hoạt động (Workflow):
+1. **Đăng ký (`POST /api/auth/register`)**:
+   - Nhận `RegisterRequestDto(Email, Password, FullName)`.
+   - Kiểm tra Email có bị trùng hay không qua `_userRepository.FindAsync(...)`.
+   - Băm mật khẩu bằng thuật toán công nghiệp **BCrypt** (`BCrypt.Net.BCrypt.HashPassword`). Tuyệt đối không lưu mật khẩu dạng plain text.
+   - Lưu `User` vào Database và cấp phát ngay JWT Token.
+2. **Đăng nhập (`POST /api/auth/login`)**:
+   - Nhận `LoginRequestDto(Email, Password)`.
+   - Tìm user theo Email, kiểm tra cờ `IsActive` (chặn tài khoản bị khóa).
+   - Xác thực mật khẩu qua `BCrypt.Net.BCrypt.Verify`.
+   - Cấp phát JWT Token có hạn sử dụng (7 ngày).
+
+### 2. Cấu trúc JWT Token:
+- **Header**: Thuật toán mã hóa `HmacSha256`.
+- **Payload (Claims)**:
+  - `sub`: UserId (dạng GUID).
+  - `email`: Địa chỉ email người dùng.
+  - `name`: Tên đầy đủ hiển thị.
+  - `jti`: Mã định danh token ngẫu nhiên.
+- **Middleware Authentication & Authorization**:
+  - `builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)...`
+  - Đảm bảo các Controller sau này chỉ cần gắn attribute `[Authorize]` là tự động bảo vệ endpoint, từ chối request không có hoặc sai Token (`401 Unauthorized`).
