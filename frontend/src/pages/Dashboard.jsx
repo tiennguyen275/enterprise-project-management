@@ -1,18 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import Navbar from '../components/Navbar';
 
 // MUI Icons
 import FolderSpecialOutlinedIcon from '@mui/icons-material/FolderSpecialOutlined';
 import CheckCircleOutlineOutlinedIcon from '@mui/icons-material/CheckCircleOutlineOutlined';
 import AddIcon from '@mui/icons-material/Add';
-import LogoutIcon from '@mui/icons-material/Logout';
 import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
 import ErrorOutlineOutlinedIcon from '@mui/icons-material/ErrorOutlineOutlined';
 
 export default function Dashboard() {
-  const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -52,19 +50,7 @@ export default function Dashboard() {
   return (
     <div className="dashboard-layout">
       {/* Header */}
-      <header className="navbar">
-        <div className="nav-brand">
-          <FolderSpecialOutlinedIcon fontSize="large" color="primary" />
-          <span>Enterprise Project Manager</span>
-        </div>
-        <div className="nav-user">
-          <span className="user-greeting">Xin chào, <strong>{user?.fullName}</strong></span>
-          <button onClick={logout} className="btn-logout" title="Đăng xuất">
-            <LogoutIcon fontSize="small" />
-            <span>Thoát</span>
-          </button>
-        </div>
-      </header>
+      <Navbar />
 
       {/* Main Content */}
       <main className="main-content">
@@ -102,35 +88,36 @@ export default function Dashboard() {
               return (
                 <div 
                   key={proj.id} 
-                  className="project-card clickable-card"
+                  className="project-card"
                   onClick={() => navigate(`/projects/${proj.id}`)}
                 >
-                  <div className="card-top">
+                  <div className="card-header">
                     <span className="badge-code">{proj.code}</span>
-                    <span className={`badge-status status-${proj.status}`}>
-                      {proj.status === 2 ? 'Đang hoạt động' : 'Kế hoạch'}
-                    </span>
+                    <span className="badge-status">Đang hoạt động</span>
                   </div>
 
-                  <h3>{proj.name}</h3>
-                  <p className="card-desc">{proj.description || 'Không có mô tả chi tiết.'}</p>
+                  <h3 className="project-title">{proj.name}</h3>
+                  <p className="project-desc">{proj.description || 'Chưa có mô tả cho dự án.'}</p>
 
                   <div className="progress-section">
                     <div className="progress-label">
                       <span>Tiến độ hoàn thành</span>
                       <strong>{progress}%</strong>
                     </div>
-                    <div className="progress-bar">
-                      <div className="progress-fill" style={{ width: `${progress}%` }}></div>
+                    <div className="progress-bar-bg">
+                      <div 
+                        className="progress-bar-fill" 
+                        style={{ width: `${progress}%` }}
+                      ></div>
                     </div>
                   </div>
 
                   <div className="card-footer">
-                    <div className="task-stats">
-                      <CheckCircleOutlineOutlinedIcon fontSize="small" color="success" />
+                    <div className="meta-item">
+                      <CheckCircleOutlineOutlinedIcon fontSize="small" style={{ color: '#10b981' }} />
                       <span>{proj.completedTasks}/{proj.totalTasks} công việc</span>
                     </div>
-                    <div className="date-info">
+                    <div className="meta-item">
                       <CalendarMonthOutlinedIcon fontSize="small" />
                       <span>{new Date(proj.createdAt).toLocaleDateString('vi-VN')}</span>
                     </div>
@@ -142,7 +129,7 @@ export default function Dashboard() {
         )}
       </main>
 
-      {/* Modal Tạo Dự Án */}
+      {/* Modal Tạo Dự Án Mới */}
       {showCreateModal && (
         <div className="modal-backdrop">
           <div className="modal-card">

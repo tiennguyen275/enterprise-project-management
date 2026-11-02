@@ -32,6 +32,14 @@ public class TasksController : ControllerBase
         return Ok(tasks);
     }
 
+    [HttpGet("my-tasks")]
+    public async Task<IActionResult> GetMyTasks(CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+        var tasks = await _taskService.GetMyTasksAsync(userId, cancellationToken);
+        return Ok(tasks);
+    }
+
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetTaskById(Guid id, CancellationToken cancellationToken)
     {
@@ -69,6 +77,20 @@ public class TasksController : ControllerBase
         }
     }
 
+    [HttpPatch("{id:guid}/assign")]
+    public async Task<IActionResult> AssignTask(Guid id, [FromBody] AssignTaskRequestDto request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var task = await _taskService.AssignTaskAsync(id, request.AssigneeId, cancellationToken);
+            return Ok(task);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> DeleteTask(Guid id, CancellationToken cancellationToken)
     {
@@ -91,4 +113,3 @@ public class TasksController : ControllerBase
         }
     }
 }
-

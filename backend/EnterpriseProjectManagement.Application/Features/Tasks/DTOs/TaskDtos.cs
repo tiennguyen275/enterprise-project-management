@@ -58,7 +58,30 @@ public record TaskResponseDto(
     List<TaskCommentDto> Comments
 );
 
+public record MyTaskResponseDto(
+    Guid Id,
+    Guid ProjectId,
+    string ProjectName,
+    string ProjectCode,
+    string TaskCode,
+    string Title,
+    string? Description,
+    ProjectTaskStatus Status,
+    TaskPriority Priority,
+    DateTime? DueDate,
+    decimal? EstimatedHours,
+    decimal? ActualHours,
+    Guid? AssigneeId,
+    string? AssigneeName,
+    DateTime CreatedAt,
+    int CommentCount,
+    bool IsOverdue
+);
+
+public record AssignTaskRequestDto(
+    Guid? AssigneeId
+);
+
 public record CreateCommentRequestDto(
     string Content
 );
-
