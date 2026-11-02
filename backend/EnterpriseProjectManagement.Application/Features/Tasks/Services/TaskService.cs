@@ -8,9 +8,11 @@ namespace EnterpriseProjectManagement.Application.Features.Tasks.Services;
 public interface ITaskService
 {
     Task<IReadOnlyList<TaskResponseDto>> GetTasksByProjectAsync(Guid projectId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<MyTaskResponseDto>> GetMyTasksAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<TaskResponseDto?> GetTaskByIdAsync(Guid taskId, CancellationToken cancellationToken = default);
     Task<TaskResponseDto> CreateTaskAsync(Guid creatorUserId, CreateTaskRequestDto request, CancellationToken cancellationToken = default);
     Task<TaskResponseDto> UpdateTaskAsync(Guid taskId, UpdateTaskRequestDto request, CancellationToken cancellationToken = default);
+    Task<TaskResponseDto> AssignTaskAsync(Guid taskId, Guid? assigneeId, CancellationToken cancellationToken = default);
     Task DeleteTaskAsync(Guid taskId, CancellationToken cancellationToken = default);
     Task<TaskCommentDto> AddCommentAsync(Guid taskId, Guid userId, string content, CancellationToken cancellationToken = default);
 }
@@ -73,6 +75,64 @@ public class TaskService : ITaskService
         }
 
         return result;
+    }
+
+    public async Task<IReadOnlyList<MyTaskResponseDto>> GetMyTasksAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        // Lấy tất cả task được phân công cho người dùng hoặc do người dùng tạo nếu chưa phân công
+        var userStr = userId.ToString();
+        var tasks = await _taskRepository.FindAsync(
+            t => t.AssigneeId == userId || (t.AssigneeId == null && t.CreatedBy == userStr), 
+            cancellationToken);
+
+        var projects = await _projectRepository.GetAllAsync(cancellationToken);
+        var projectDict = projects.ToDictionary(p => p.Id, p => (Name: p.Name, Code: p.Code));
+
+        var users = await _userRepository.GetAllAsync(cancellationToken);
+        var userDict = users.ToDictionary(u => u.Id, u => u.FullName);
+
+        var allComments = await _commentRepository.GetAllAsync(cancellationToken);
+        var commentCounts = allComments.GroupBy(c => c.TaskId).ToDictionary(g => g.Key, g => g.Count());
+
+        var today = DateTime.UtcNow.Date;
+        var result = new List<MyTaskResponseDto>();
+
+        foreach (var task in tasks)
+        {
+            var projName = projectDict.TryGetValue(task.ProjectId, out var pInfo) ? pInfo.Name : "Dự án";
+            var projCode = projectDict.TryGetValue(task.ProjectId, out pInfo) ? pInfo.Code : "PRJ";
+            var assigneeName = task.AssigneeId.HasValue && userDict.TryGetValue(task.AssigneeId.Value, out var aName) ? aName : null;
+            var commentCount = commentCounts.TryGetValue(task.Id, out var count) ? count : 0;
+            var isOverdue = task.DueDate.HasValue && task.DueDate.Value.Date < today && task.Status != ProjectTaskStatus.Done;
+
+            result.Add(new MyTaskResponseDto(
+                task.Id,
+                task.ProjectId,
+                projName,
+                projCode,
+                task.TaskCode,
+                task.Title,
+                task.Description,
+                task.Status,
+                task.Priority,
+                task.DueDate,
+                task.EstimatedHours,
+                task.ActualHours,
+                task.AssigneeId,
+                assigneeName,
+                task.CreatedAt,
+                commentCount,
+                isOverdue
+            ));
+        }
+
+        // Sắp xếp: Ưu tiên Quá hạn -> Đến hạn gần nhất -> Độ ưu tiên cao
+        return result
+            .OrderByDescending(t => t.IsOverdue)
+            .ThenBy(t => t.Status == ProjectTaskStatus.Done)
+            .ThenBy(t => t.DueDate ?? DateTime.MaxValue)
+            .ThenByDescending(t => t.Priority)
+            .ToList();
     }
 
     public async Task<TaskResponseDto?> GetTaskByIdAsync(Guid taskId, CancellationToken cancellationToken = default)
@@ -168,6 +228,24 @@ public class TaskService : ITaskService
         return (await GetTaskByIdAsync(taskId, cancellationToken))!;
     }
 
+    public async Task<TaskResponseDto> AssignTaskAsync(Guid taskId, Guid? assigneeId, CancellationToken cancellationToken = default)
+    {
+        var task = await _taskRepository.GetByIdAsync(taskId, cancellationToken);
+        if (task == null) throw new KeyNotFoundException("Không tìm thấy công việc.");
+
+        if (assigneeId.HasValue)
+        {
+            var user = await _userRepository.GetByIdAsync(assigneeId.Value, cancellationToken);
+            if (user == null) throw new KeyNotFoundException("Người dùng được chỉ định không tồn tại.");
+        }
+
+        task.AssigneeId = assigneeId;
+        await _taskRepository.UpdateAsync(task, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return (await GetTaskByIdAsync(taskId, cancellationToken))!;
+    }
+
     public async Task DeleteTaskAsync(Guid taskId, CancellationToken cancellationToken = default)
     {
         var task = await _taskRepository.GetByIdAsync(taskId, cancellationToken);
@@ -196,4 +274,3 @@ public class TaskService : ITaskService
         return new TaskCommentDto(comment.Id, user.Id, user.FullName, comment.Content, comment.CreatedAt);
     }
 }
-

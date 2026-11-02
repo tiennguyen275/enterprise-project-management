@@ -343,3 +343,24 @@ frontend/src/assets/styles/
 - **Độ tương phản tiêu chuẩn WCAG AAA**: Tiêu đề luôn hiển thị rõ nét với màu `#0f172a`, mô tả và ngày tháng phân cấp rõ ràng bằng `#475569` và `#64748b`.
 - **Hiệu năng biên dịch**: Vite Sass biên dịch trực tiếp toàn bộ hệ thống SCSS chỉ trong ~500ms, tệp build CSS nén gzip chỉ còn ~4.2 kB.
 
+
+
+---
+
+## 16. Phân Hệ Không Gian Làm Việc Cá Nhân & Quản Lý Công Việc Của Tôi (Personal Workspace & My Tasks)
+
+### 16.1. Nghiệp vụ & Kế thừa từ Talgent
+- Trong các nền tảng quản lý dự án doanh nghiệp lớn (như Talgent với `PersonalWorkSpaceController`), người dùng không chỉ xem danh sách dự án mà cần một trang cá nhân tập trung (**My Tasks**) để theo dõi tất cả đầu việc được phân công trên nhiều dự án khác nhau.
+- Các yêu cầu cốt lõi được kế thừa:
+  1. **Tập trung hóa công việc**: Tự động gom toàn bộ các công việc gán cho tài khoản đăng nhập hiện tại từ mọi dự án mà thành viên tham gia.
+  2. **Bộ lọc đa chiều theo tiến trình**:
+     - *Hôm nay (Due Today)*: Các task có hạn chót trong ngày.
+     - *Quá hạn (Overdue)*: Các task chưa xong có `DueDate < Today`, hiển thị cảnh báo đỏ nổi bật.
+     - *Đang thực hiện (In Progress)* & *Đã xong (Completed)*.
+  3. **Cập nhật nhanh trạng thái (Quick Transition)**: Thay đổi trạng thái công việc trực tiếp từ màn hình cá nhân mà không cần tìm mở từng dự án riêng lẻ.
+  4. **Tìm kiếm & Lọc theo Dự án**: Hỗ trợ tìm kiếm theo từ khóa hoặc chọn xem công việc của một dự án nhất định.
+  5. **Chỉ định người thực hiện khi tạo Task**: Khi tạo task trong bảng Kanban, cho phép gán trực tiếp thành viên trong dự án làm Assignee.
+
+### 16.2. Thiết kế API Backend
+- **`GET /api/tasks/my-tasks`**: Trả về danh sách `MyTaskResponseDto` kèm mã dự án (`ProjectCode`), tên dự án (`ProjectName`), số lượng thảo luận (`CommentCount`) và cờ cảnh báo quá hạn (`IsOverdue`). Sắp xếp tự động ưu tiên: Quá hạn -> Hạn gần nhất -> Độ ưu tiên cao.
+- **`PATCH /api/tasks/{id}/assign`**: API chỉ định hoặc chuyển giao người thực hiện cho công việc.

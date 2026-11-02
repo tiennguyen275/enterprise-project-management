@@ -5,6 +5,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import ProjectDetail from './pages/ProjectDetail';
+import MyTasks from './pages/MyTasks';
 
 // Component bảo vệ Route: Chỉ cho phép vào khi đã đăng nhập
 const ProtectedRoute = ({ children }) => {
@@ -27,6 +28,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/my-tasks"
+            element={
+              <ProtectedRoute>
+                <MyTasks />
               </ProtectedRoute>
             }
           />

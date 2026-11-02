@@ -1,0 +1,30 @@
+### 1. Công việc (Work)
+- Xây dựng phân hệ **Không gian làm việc cá nhân & Quản lý Công việc của tôi (Personal Workspace & My Tasks)** kế thừa từ kiến trúc `PersonalWorkSpaceController` trong hệ thống Talgent.
+- Bổ sung khả năng phân công người thực hiện (`AssigneeId`) khi tạo công việc trên bảng Kanban và hỗ trợ gán/chuyển giao công việc qua API `PATCH /api/tasks/{id}/assign`.
+- Xây dựng giao diện trang `/my-tasks` trên React Vite với bộ chỉ số KPI, thanh điều hướng Navbar chung, bộ lọc đa chiều (Hôm nay, Quá hạn, Đang làm, Đã xong), tìm kiếm từ khóa, lọc theo dự án, cập nhật trạng thái nhanh và modal thảo luận trực tiếp.
+
+### 2. Lý do (Why)
+- Trong các quy trình quản lý dự án doanh nghiệp thực tế, người dùng (kỹ sư, nhân viên, quản lý) thường tham gia đồng thời nhiều dự án khác nhau. Nếu phải truy cập vào từng dự án riêng biệt để tìm xem mình có công việc gì cần làm sẽ rất tốn thời gian và dễ bỏ sót các deadline quan trọng.
+- Trang "Công việc của tôi" (My Tasks) giải quyết triệt để vấn đề này bằng cách gom toàn bộ các công việc được giao trên toàn hệ thống về một giao diện duy nhất, sắp xếp thông minh ưu tiên việc quá hạn và việc sắp đến hạn chót.
+
+### 3. Những thay đổi (What changed)
+- **Backend (.NET 10 Web API)**:
+  - `TaskDtos.cs`: Thêm `MyTaskResponseDto` (kèm `ProjectCode`, `ProjectName`, `CommentCount`, `IsOverdue`) và `AssignTaskRequestDto`.
+  - `TaskService.cs`: Bổ sung `GetMyTasksAsync` truy vấn và tổng hợp các task phân công cho người dùng trên mọi dự án, tính toán hạn quá hạn, sắp xếp theo deadline và độ ưu tiên; cập nhật `CreateTaskAsync` và `AssignTaskAsync` hỗ trợ `AssigneeId`.
+  - `TasksController.cs`: Cung cấp 2 endpoint mới: `GET /api/tasks/my-tasks` và `PATCH /api/tasks/{id}/assign`.
+- **Frontend (ReactJS + SCSS Modular)**:
+  - `Navbar.jsx`: Tạo component thanh điều hướng chung liên kết chuyển đổi linh hoạt giữa "Dự án" (`/`) và "Công việc của tôi" (`/my-tasks`).
+  - `MyTasks.jsx`: Trang quản lý công việc cá nhân với:
+    - 4 thẻ thống kê KPI: Tổng việc được giao, Việc quá hạn (màu đỏ cảnh báo), Việc đến hạn hôm nay (màu vàng), Việc đã xong (màu xanh).
+    - Bộ lọc tiến trình 5 tab: Tất cả, Hôm nay, Quá hạn, Đang làm, Đã xong.
+    - Tìm kiếm tức thời theo mã công việc, tên công việc hoặc tên dự án; Dropdown lọc theo dự án cụ thể.
+    - Danh sách thẻ công việc chi tiết với nhãn dự án, mã công việc, hạn chót, số lượng thảo luận và dropdown cập nhật trạng thái tức thì.
+    - Tích hợp Modal xem chi tiết và thảo luận / trao đổi bình luận công việc.
+  - `ProjectDetail.jsx`: Cập nhật modal tạo task mới cho phép chọn người thực hiện (Assignee) từ danh sách thành viên dự án; hiển thị tên Assignee trên thẻ Kanban.
+  - `_my_tasks.scss` & `main.scss`: Hệ thống kiểu dáng SCSS chuẩn WCAG AAA, sắc nét và hiện đại.
+- **Tài liệu**: Bổ sung Mục 16 vào `docs/ARCHITECTURE_AND_DESIGN_PATTERNS.md`.
+
+### 4. Kiểm thử và xác thực (Validation and proof)
+- Backend: Biên dịch thành công 0 lỗi (`0 Error(s)`), dịch vụ API chạy ổn định tại cổng `http://localhost:5164`.
+- Frontend: Chạy `npm run build` thành công trong 369ms, không có lỗi runtime.
+- Đã xác thực giao diện responsive, điều hướng mượt mà giữa các trang, phân công thành viên và cập nhật trạng thái hoạt động chính xác.
