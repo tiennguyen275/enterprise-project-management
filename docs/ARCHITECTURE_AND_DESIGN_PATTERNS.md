@@ -292,3 +292,22 @@ Kế thừa trực tiếp từ `MeetingNoteController.cs` trong codebase Talgent
   - `onDragStart`: Lưu `taskId` vào `dataTransfer`.
   - `onDragOver` & `onDragLeave`: Cung cấp phản hồi thị giác (Visual feedback) viền xanh dashed (`column-drag-over`) khi rê chuột qua cột.
   - `onDrop`: Lấy `colId` đích, cập nhật giao diện lập tức (Optimistic UI update) và gọi API `PUT /api/tasks/{id}` đồng bộ xuống cơ sở dữ liệu.
+
+
+---
+
+## 14. Tích Hợp Hệ Thống Icon Chuẩn Doanh Nghiệp (Material UI Icons)
+
+Được triển khai trên nhánh `feature/mui-icons-integration`:
+
+### 1. Lựa chọn Công nghệ: Google Material Design (MUI) thay vì Bootstrap
+- So với Bootstrap (thiên về các lớp CSS tĩnh), **MUI (Material UI)** là thư viện hàng đầu trong hệ sinh thái React:
+  - Cung cấp component React dạng SVG native: `@mui/icons-material`.
+  - Hỗ trợ tùy biến kích thước và màu sắc linh hoạt qua props: `fontSize="small"`, `color="primary"`, `color="success"`.
+  - Giúp giao diện ứng dụng mang phong cách hiện đại của các sản phẩm Google / Enterprise Dashboard.
+
+### 2. Các Icon Được Tích Hợp Xuyên Suốt:
+- **Xác thực**: `LoginIcon`, `PersonAddOutlinedIcon`, `LockOutlinedIcon`, `EmailOutlinedIcon`.
+- **Dự án & Không gian làm việc**: `FolderSpecialOutlinedIcon`, `AddIcon`, `CheckCircleOutlineOutlinedIcon`, `CalendarMonthOutlinedIcon`.
+- **Kanban & Công việc**: `ViewKanbanOutlinedIcon`, `DragIndicatorIcon`, `AccessTimeIcon`, `ChatBubbleOutlineOutlinedIcon`.
+- **Cộng tác & Biên bản họp**: `DescriptionOutlinedIcon`, `PeopleAltOutlinedIcon`, `PersonAddAlt1OutlinedIcon`, `DeleteOutlineOutlinedIcon`.

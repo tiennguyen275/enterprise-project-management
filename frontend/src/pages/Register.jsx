@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
-import { UserPlus, Lock, Mail, User, AlertCircle } from 'lucide-react';
+import PersonAddOutlinedIcon from '@mui/icons-material/PersonAddOutlined';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
+import EmailOutlinedIcon from '@mui/icons-material/EmailOutlined';
+import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined';
+import ErrorOutlineOutlinedIcon from '@mui/icons-material/ErrorOutlineOutlined';
 
 export default function Register() {
   const [email, setEmail] = useState('');
@@ -31,7 +35,7 @@ export default function Register() {
       <div className="auth-card">
         <div className="auth-header">
           <div className="auth-icon-wrapper">
-            <UserPlus className="auth-icon" />
+            <PersonAddOutlinedIcon fontSize="large" color="primary" />
           </div>
           <h2>Tạo Tài Khoản</h2>
           <p>Tham gia hệ thống quản lý dự án</p>
@@ -39,7 +43,7 @@ export default function Register() {
 
         {error && (
           <div className="alert-error">
-            <AlertCircle size={18} />
+            <ErrorOutlineOutlinedIcon fontSize="small" />
             <span>{error}</span>
           </div>
         )}
@@ -48,7 +52,7 @@ export default function Register() {
           <div className="form-group">
             <label>Họ và tên</label>
             <div className="input-with-icon">
-              <User size={18} className="input-icon" />
+              <AccountCircleOutlinedIcon fontSize="small" className="input-icon" />
               <input
                 type="text"
                 required
@@ -62,7 +66,7 @@ export default function Register() {
           <div className="form-group">
             <label>Email</label>
             <div className="input-with-icon">
-              <Mail size={18} className="input-icon" />
+              <EmailOutlinedIcon fontSize="small" className="input-icon" />
               <input
                 type="email"
                 required
@@ -76,7 +80,7 @@ export default function Register() {
           <div className="form-group">
             <label>Mật khẩu</label>
             <div className="input-with-icon">
-              <Lock size={18} className="input-icon" />
+              <LockOutlinedIcon fontSize="small" className="input-icon" />
               <input
                 type="password"
                 required

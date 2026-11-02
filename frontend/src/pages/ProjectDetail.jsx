@@ -1,10 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../services/api';
-import { 
-  ArrowLeft, Plus, Clock, AlertCircle, 
-  MessageSquare, UserPlus, Users, BarChart3, Columns, FileText, Calendar, Trash2, X, Move 
-} from 'lucide-react';
+
+// MUI Icons
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import AddIcon from '@mui/icons-material/Add';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import ErrorOutlineOutlinedIcon from '@mui/icons-material/ErrorOutlineOutlined';
+import ChatBubbleOutlineOutlinedIcon from '@mui/icons-material/ChatBubbleOutlineOutlined';
+import PersonAddAlt1OutlinedIcon from '@mui/icons-material/PersonAddAlt1Outlined';
+import PeopleAltOutlinedIcon from '@mui/icons-material/PeopleAltOutlined';
+import BarChartOutlinedIcon from '@mui/icons-material/BarChartOutlined';
+import ViewKanbanOutlinedIcon from '@mui/icons-material/ViewKanbanOutlined';
+import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
+import CalendarTodayOutlinedIcon from '@mui/icons-material/CalendarTodayOutlined';
+import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined';
+import CloseIcon from '@mui/icons-material/Close';
+import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 
 const COLUMNS = [
   { id: 1, title: 'Cần làm (Todo)', color: '#64748b' },
@@ -40,7 +52,7 @@ export default function ProjectDetail() {
   // Modal mời thành viên
   const [showMemberModal, setShowMemberModal] = useState(false);
   const [memberEmail, setMemberEmail] = useState('');
-  const [memberRole, setMemberRole] = useState(3); // 3 = Member
+  const [memberRole, setMemberRole] = useState(3);
   const [memberError, setMemberError] = useState('');
 
   // Modal tạo biên bản cuộc họp
@@ -105,7 +117,6 @@ export default function ProjectDetail() {
       const task = tasks.find(t => t.id === taskId);
       if (!task || task.status === newStatus) return;
 
-      // Cập nhật state cục bộ ngay lập tức (Optimistic UI update)
       setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
 
       await api.put(`/tasks/${taskId}`, {
@@ -119,15 +130,13 @@ export default function ProjectDetail() {
         assigneeId: task.assigneeId
       });
 
-      // Tải lại analytics ngầm
       api.get(`/projects/${id}/analytics`).then(res => setAnalytics(res.data));
     } catch (err) {
       console.error('Lỗi cập nhật trạng thái:', err);
-      fetchProjectData(); // Rollback nếu lỗi mạng
+      fetchProjectData();
     }
   };
 
-  // Drag and drop handlers
   const handleDragStart = (e, taskId) => {
     setDraggedTaskId(taskId);
     e.dataTransfer.setData('text/plain', taskId);
@@ -238,7 +247,7 @@ export default function ProjectDetail() {
   if (!project) {
     return (
       <div className="empty-state">
-        <AlertCircle size={48} className="empty-icon" />
+        <ErrorOutlineOutlinedIcon style={{ fontSize: 60, color: '#ef4444' }} />
         <h3>Không tìm thấy dự án</h3>
         <Link to="/" className="btn-primary">Về Không Gian Làm Việc</Link>
       </div>
@@ -251,7 +260,7 @@ export default function ProjectDetail() {
       <div className="project-header">
         <div className="header-left">
           <Link to="/" className="btn-back">
-            <ArrowLeft size={18} />
+            <ArrowBackIcon fontSize="small" />
             <span>Danh sách dự án</span>
           </Link>
           <div className="title-group">
@@ -262,11 +271,11 @@ export default function ProjectDetail() {
         </div>
         <div className="header-right header-actions">
           <button onClick={() => setShowMemberModal(true)} className="btn-secondary">
-            <UserPlus size={18} />
+            <PersonAddAlt1OutlinedIcon fontSize="small" />
             <span>Mời Thành Viên ({project.members?.length || 1})</span>
           </button>
           <button onClick={() => setShowTaskModal(true)} className="btn-primary">
-            <Plus size={18} />
+            <AddIcon fontSize="small" />
             <span>Thêm Công Việc</span>
           </button>
         </div>
@@ -278,21 +287,21 @@ export default function ProjectDetail() {
           className={`tab-btn ${activeTab === 'kanban' ? 'active' : ''}`}
           onClick={() => setActiveTab('kanban')}
         >
-          <Columns size={18} />
+          <ViewKanbanOutlinedIcon fontSize="small" />
           <span>Bảng Kanban (Kéo Thả)</span>
         </button>
         <button 
           className={`tab-btn ${activeTab === 'notes' ? 'active' : ''}`}
           onClick={() => setActiveTab('notes')}
         >
-          <FileText size={18} />
+          <DescriptionOutlinedIcon fontSize="small" />
           <span>Biên Bản Cuộc Họp ({notes.length})</span>
         </button>
         <button 
           className={`tab-btn ${activeTab === 'analytics' ? 'active' : ''}`}
           onClick={() => setActiveTab('analytics')}
         >
-          <BarChart3 size={18} />
+          <BarChartOutlinedIcon fontSize="small" />
           <span>Báo Cáo Phân Bổ (Analytics)</span>
         </button>
       </div>
@@ -342,13 +351,13 @@ export default function ProjectDetail() {
 
                         {task.dueDate && (
                           <div className="task-meta-due">
-                            <Clock size={14} />
+                            <AccessTimeIcon style={{ fontSize: 14 }} />
                             <span>{new Date(task.dueDate).toLocaleDateString('vi-VN')}</span>
                           </div>
                         )}
 
                         <div className="task-card-actions">
-                          <span className="drag-hint"><Move size={12} /> Kéo thả hoặc chọn</span>
+                          <span className="drag-hint"><DragIndicatorIcon style={{ fontSize: 14 }} /> Kéo thả hoặc chọn</span>
                           <select 
                             value={task.status} 
                             onClick={(e) => e.stopPropagation()}
@@ -379,18 +388,18 @@ export default function ProjectDetail() {
               <p>Lưu vết các quyết định quan trọng và phân công hành động (Action Items)</p>
             </div>
             <button onClick={() => setShowNoteModal(true)} className="btn-primary">
-              <Plus size={18} />
+              <AddIcon fontSize="small" />
               <span>Ghi Biên Bản Mới</span>
             </button>
           </div>
 
           {notes.length === 0 ? (
             <div className="empty-state">
-              <FileText size={48} className="empty-icon" />
+              <DescriptionOutlinedIcon style={{ fontSize: 60, color: '#94a3b8' }} />
               <h3>Chưa có biên bản cuộc họp nào</h3>
               <p>Lưu lại nội dung cuộc họp để cả nhóm cùng theo dõi</p>
               <button onClick={() => setShowNoteModal(true)} className="btn-primary">
-                <Plus size={18} />
+                <AddIcon fontSize="small" />
                 <span>Tạo Biên Bản Đầu Tiên</span>
               </button>
             </div>
@@ -401,12 +410,12 @@ export default function ProjectDetail() {
                   <div className="note-card-header">
                     <h4>{note.title}</h4>
                     <button onClick={() => handleDeleteNote(note.id)} className="btn-delete" title="Xóa">
-                      <Trash2 size={16} />
+                      <DeleteOutlineOutlinedIcon fontSize="small" />
                     </button>
                   </div>
                   <div className="note-meta">
-                    <span><Calendar size={14} /> {new Date(note.meetingDate).toLocaleDateString('vi-VN')}</span>
-                    {note.attendees && <span><Users size={14} /> {note.attendees}</span>}
+                    <span><CalendarTodayOutlinedIcon style={{ fontSize: 14 }} /> {new Date(note.meetingDate).toLocaleDateString('vi-VN')}</span>
+                    {note.attendees && <span><PeopleAltOutlinedIcon style={{ fontSize: 14 }} /> {note.attendees}</span>}
                   </div>
                   <div className="note-content">
                     <p>{note.content}</p>
@@ -447,7 +456,7 @@ export default function ProjectDetail() {
           </div>
 
           <div className="analytics-card">
-            <h3><Users size={20} /> Thống Kê Phân Bổ Công Việc Theo Thành Viên (Workload Allocation)</h3>
+            <h3><PeopleAltOutlinedIcon fontSize="small" /> Thống Kê Phân Bổ Công Việc Theo Thành Viên (Workload Allocation)</h3>
             <p className="section-desc">Kế thừa chuẩn thuật toán thống kê AllocateTaskStatistic từ dự án Talgent</p>
 
             <table className="data-table">
@@ -492,7 +501,7 @@ export default function ProjectDetail() {
 
             {memberError && (
               <div className="alert-error">
-                <AlertCircle size={18} />
+                <ErrorOutlineOutlinedIcon fontSize="small" />
                 <span>{memberError}</span>
               </div>
             )}
@@ -669,14 +678,14 @@ export default function ProjectDetail() {
                 <h2>{selectedTask.title}</h2>
               </div>
               <button onClick={() => setSelectedTask(null)} className="btn-close">
-                <X size={20} />
+                <CloseIcon fontSize="small" />
               </button>
             </div>
 
             <p className="detail-desc">{selectedTask.description || 'Chưa có mô tả chi tiết.'}</p>
 
             <div className="comments-section">
-              <h3><MessageSquare size={16} /> Thảo Luận & Ghi Chú ({selectedTask.comments?.length || 0})</h3>
+              <h3><ChatBubbleOutlineOutlinedIcon fontSize="small" /> Thảo Luận & Ghi Chú ({selectedTask.comments?.length || 0})</h3>
               
               <div className="comments-list">
                 {selectedTask.comments?.map(c => (

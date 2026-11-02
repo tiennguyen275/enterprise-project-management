@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
-import { LogIn, Lock, Mail, AlertCircle } from 'lucide-react';
+import LoginIcon from '@mui/icons-material/Login';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
+import EmailOutlinedIcon from '@mui/icons-material/EmailOutlined';
+import ErrorOutlineOutlinedIcon from '@mui/icons-material/ErrorOutlineOutlined';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -30,7 +33,7 @@ export default function Login() {
       <div className="auth-card">
         <div className="auth-header">
           <div className="auth-icon-wrapper">
-            <LogIn className="auth-icon" />
+            <LoginIcon fontSize="large" color="primary" />
           </div>
           <h2>Đăng Nhập Hệ Thống</h2>
           <p>Hệ thống Quản lý Dự án Doanh nghiệp</p>
@@ -38,7 +41,7 @@ export default function Login() {
 
         {error && (
           <div className="alert-error">
-            <AlertCircle size={18} />
+            <ErrorOutlineOutlinedIcon fontSize="small" />
             <span>{error}</span>
           </div>
         )}
@@ -47,7 +50,7 @@ export default function Login() {
           <div className="form-group">
             <label>Email công vụ</label>
             <div className="input-with-icon">
-              <Mail size={18} className="input-icon" />
+              <EmailOutlinedIcon fontSize="small" className="input-icon" />
               <input
                 type="email"
                 required
@@ -61,7 +64,7 @@ export default function Login() {
           <div className="form-group">
             <label>Mật khẩu</label>
             <div className="input-with-icon">
-              <Lock size={18} className="input-icon" />
+              <LockOutlinedIcon fontSize="small" className="input-icon" />
               <input
                 type="password"
                 required
