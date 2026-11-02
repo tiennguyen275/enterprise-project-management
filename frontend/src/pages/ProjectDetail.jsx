@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useParams, Link } from 'react-router-dom';
 import api from '../services/api';
 import { 
-  ArrowLeft, Plus, CheckCircle2, Clock, AlertCircle, 
-  MessageSquare, User, Calendar, Tag, ChevronRight, X 
+  ArrowLeft, Plus, Clock, AlertCircle, 
+  MessageSquare, UserPlus, Users, BarChart3, Columns, X 
 } from 'lucide-react';
 
 const COLUMNS = [
@@ -16,11 +15,11 @@ const COLUMNS = [
 
 export default function ProjectDetail() {
   const { id } = useParams();
-  const navigate = useNavigate();
-  const { user } = useAuth();
 
+  const [activeTab, setActiveTab] = useState('kanban'); // 'kanban' | 'analytics'
   const [project, setProject] = useState(null);
   const [tasks, setTasks] = useState([]);
+  const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
 
   // Modal tạo công việc
@@ -33,6 +32,12 @@ export default function ProjectDetail() {
     estimatedHours: ''
   });
 
+  // Modal mời thành viên
+  const [showMemberModal, setShowMemberModal] = useState(false);
+  const [memberEmail, setMemberEmail] = useState('');
+  const [memberRole, setMemberRole] = useState(3); // 3 = Member
+  const [memberError, setMemberError] = useState('');
+
   // Modal chi tiết & bình luận task
   const [selectedTask, setSelectedTask] = useState(null);
   const [commentText, setCommentText] = useState('');
@@ -40,12 +45,14 @@ export default function ProjectDetail() {
   const fetchProjectData = async () => {
     try {
       setLoading(true);
-      const [projRes, tasksRes] = await Promise.all([
+      const [projRes, tasksRes, analyticsRes] = await Promise.all([
         api.get(`/projects/${id}`),
-        api.get(`/tasks/project/${id}`)
+        api.get(`/tasks/project/${id}`),
+        api.get(`/projects/${id}/analytics`)
       ]);
       setProject(projRes.data);
       setTasks(tasksRes.data);
+      setAnalytics(analyticsRes.data);
     } catch (err) {
       console.error('Lỗi tải dữ liệu dự án:', err);
     } finally {
@@ -92,10 +99,24 @@ export default function ProjectDetail() {
         assigneeId: task.assigneeId
       });
 
-      // Cập nhật state cục bộ để UI phản hồi tức thì
       setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
+      // Tải lại analytics ngầm
+      api.get(`/projects/${id}/analytics`).then(res => setAnalytics(res.data));
     } catch (err) {
       console.error('Lỗi cập nhật trạng thái:', err);
+    }
+  };
+
+  const handleInviteMember = async (e) => {
+    e.preventDefault();
+    setMemberError('');
+    try {
+      await api.post(`/projects/${id}/members?email=${encodeURIComponent(memberEmail)}&role=${memberRole}`);
+      setShowMemberModal(false);
+      setMemberEmail('');
+      fetchProjectData();
+    } catch (err) {
+      setMemberError(err.response?.data?.message || 'Không thể thêm thành viên.');
     }
   };
 
@@ -152,7 +173,11 @@ export default function ProjectDetail() {
           </div>
           <p className="project-desc">{project.description}</p>
         </div>
-        <div className="header-right">
+        <div className="header-right header-actions">
+          <button onClick={() => setShowMemberModal(true)} className="btn-secondary">
+            <UserPlus size={18} />
+            <span>Mời Thành Viên ({project.members?.length || 1})</span>
+          </button>
           <button onClick={() => setShowTaskModal(true)} className="btn-primary">
             <Plus size={18} />
             <span>Thêm Công Việc</span>
@@ -160,63 +185,191 @@ export default function ProjectDetail() {
         </div>
       </div>
 
-      {/* Kanban Board Columns */}
-      <div className="kanban-board">
-        {COLUMNS.map(col => {
-          const colTasks = tasks.filter(t => t.status === col.id);
-          return (
-            <div key={col.id} className="kanban-column">
-              <div className="column-header" style={{ borderTopColor: col.color }}>
-                <h3>{col.title}</h3>
-                <span className="count-badge">{colTasks.length}</span>
-              </div>
-
-              <div className="task-list">
-                {colTasks.length === 0 ? (
-                  <div className="empty-column-placeholder">Chưa có công việc</div>
-                ) : (
-                  colTasks.map(task => (
-                    <div 
-                      key={task.id} 
-                      className="kanban-task-card"
-                      onClick={() => handleOpenTaskDetail(task.id)}
-                    >
-                      <div className="task-card-top">
-                        <span className="task-code">{task.taskCode}</span>
-                        <span className={`priority-badge priority-${task.priority}`}>
-                          {task.priority === 4 ? 'Khẩn cấp' : task.priority === 3 ? 'Cao' : task.priority === 2 ? 'Trung bình' : 'Thấp'}
-                        </span>
-                      </div>
-
-                      <h4>{task.title}</h4>
-
-                      {task.dueDate && (
-                        <div className="task-meta-due">
-                          <Clock size={14} />
-                          <span>{new Date(task.dueDate).toLocaleDateString('vi-VN')}</span>
-                        </div>
-                      )}
-
-                      <div className="task-card-actions">
-                        <select 
-                          value={task.status} 
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) => handleUpdateStatus(task.id, parseInt(e.target.value))}
-                          className="status-dropdown"
-                        >
-                          {COLUMNS.map(c => (
-                            <option key={c.id} value={c.id}>{c.title}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          );
-        })}
+      {/* Tabs Switcher: Kanban vs Analytics */}
+      <div className="tabs-bar">
+        <button 
+          className={`tab-btn ${activeTab === 'kanban' ? 'active' : ''}`}
+          onClick={() => setActiveTab('kanban')}
+        >
+          <Columns size={18} />
+          <span>Bảng Kanban</span>
+        </button>
+        <button 
+          className={`tab-btn ${activeTab === 'analytics' ? 'active' : ''}`}
+          onClick={() => setActiveTab('analytics')}
+        >
+          <BarChart3 size={18} />
+          <span>Báo Cáo Phân Bổ (Analytics)</span>
+        </button>
       </div>
+
+      {/* Tab 1: Kanban Board */}
+      {activeTab === 'kanban' && (
+        <div className="kanban-board">
+          {COLUMNS.map(col => {
+            const colTasks = tasks.filter(t => t.status === col.id);
+            return (
+              <div key={col.id} className="kanban-column">
+                <div className="column-header" style={{ borderTopColor: col.color }}>
+                  <h3>{col.title}</h3>
+                  <span className="count-badge">{colTasks.length}</span>
+                </div>
+
+                <div className="task-list">
+                  {colTasks.length === 0 ? (
+                    <div className="empty-column-placeholder">Chưa có công việc</div>
+                  ) : (
+                    colTasks.map(task => (
+                      <div 
+                        key={task.id} 
+                        className="kanban-task-card"
+                        onClick={() => handleOpenTaskDetail(task.id)}
+                      >
+                        <div className="task-card-top">
+                          <span className="task-code">{task.taskCode}</span>
+                          <span className={`priority-badge priority-${task.priority}`}>
+                            {task.priority === 4 ? 'Khẩn cấp' : task.priority === 3 ? 'Cao' : task.priority === 2 ? 'Trung bình' : 'Thấp'}
+                          </span>
+                        </div>
+
+                        <h4>{task.title}</h4>
+
+                        {task.dueDate && (
+                          <div className="task-meta-due">
+                            <Clock size={14} />
+                            <span>{new Date(task.dueDate).toLocaleDateString('vi-VN')}</span>
+                          </div>
+                        )}
+
+                        <div className="task-card-actions">
+                          <select 
+                            value={task.status} 
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => handleUpdateStatus(task.id, parseInt(e.target.value))}
+                            className="status-dropdown"
+                          >
+                            {COLUMNS.map(c => (
+                              <option key={c.id} value={c.id}>{c.title}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Tab 2: Analytics & Workload Distribution */}
+      {activeTab === 'analytics' && analytics && (
+        <div className="analytics-layout">
+          {/* Summary Stat Cards */}
+          <div className="stats-cards-grid">
+            <div className="stat-card">
+              <span className="stat-label">Tổng số công việc</span>
+              <strong className="stat-value">{analytics.totalTasks}</strong>
+            </div>
+            <div className="stat-card">
+              <span className="stat-label">Tỷ lệ hoàn thành</span>
+              <strong className="stat-value text-success">{analytics.completionRate}%</strong>
+            </div>
+            <div className="stat-card">
+              <span className="stat-label">Đang thực hiện</span>
+              <strong className="stat-value text-primary">{analytics.inProgressTasks}</strong>
+            </div>
+            <div className="stat-card">
+              <span className="stat-label">Chờ duyệt</span>
+              <strong className="stat-value text-warning">{analytics.inReviewTasks}</strong>
+            </div>
+          </div>
+
+          {/* Member Workload Allocation Table */}
+          <div className="analytics-card">
+            <h3><Users size={20} /> Thống Kê Phân Bổ Công Việc Theo Thành Viên (Workload Allocation)</h3>
+            <p className="section-desc">Kế thừa chuẩn thuật toán thống kê AllocateTaskStatistic từ dự án Talgent</p>
+
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Thành viên</th>
+                  <th>Email</th>
+                  <th>Công việc giao</th>
+                  <th>Đã xong</th>
+                  <th>Tỷ lệ phân bổ tải</th>
+                </tr>
+              </thead>
+              <tbody>
+                {analytics.memberAllocations?.map(m => (
+                  <tr key={m.userId}>
+                    <td><strong>{m.fullName}</strong></td>
+                    <td>{m.email}</td>
+                    <td>{m.totalTasks} task</td>
+                    <td><span className="badge-done">{m.completedTasks} task</span></td>
+                    <td>
+                      <div className="allocation-progress">
+                        <div className="progress-bar">
+                          <div className="progress-fill" style={{ width: `${m.allocationPercentage}%` }}></div>
+                        </div>
+                        <span>{m.allocationPercentage}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Mời Thành Viên */}
+      {showMemberModal && (
+        <div className="modal-backdrop">
+          <div className="modal-card">
+            <h2>Mời Thành Viên Vào Dự Án</h2>
+            <p>Nhập email thành viên đã đăng ký tài khoản trên hệ thống</p>
+
+            {memberError && (
+              <div className="alert-error">
+                <AlertCircle size={18} />
+                <span>{memberError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleInviteMember}>
+              <div className="form-group">
+                <label>Email thành viên *</label>
+                <input 
+                  type="email" 
+                  required 
+                  placeholder="thanhvien@congty.com"
+                  value={memberEmail}
+                  onChange={(e) => setMemberEmail(e.target.value)}
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Vai trò dự án</label>
+                <select 
+                  value={memberRole} 
+                  onChange={(e) => setMemberRole(parseInt(e.target.value))}
+                >
+                  <option value={2}>Quản lý dự án (Project Manager)</option>
+                  <option value={3}>Thành viên thực hiện (Member)</option>
+                  <option value={4}>Người xem / Khách (Viewer)</option>
+                </select>
+              </div>
+
+              <div className="modal-actions">
+                <button type="button" onClick={() => setShowMemberModal(false)} className="btn-secondary">Hủy</button>
+                <button type="submit" className="btn-primary">Thêm Thành Viên</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Modal Thêm Task */}
       {showTaskModal && (

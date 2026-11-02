@@ -12,7 +12,8 @@ public interface IProjectService
     Task<ProjectResponseDto> CreateProjectAsync(Guid creatorUserId, CreateProjectRequestDto request, CancellationToken cancellationToken = default);
     Task<ProjectResponseDto> UpdateProjectAsync(Guid projectId, UpdateProjectRequestDto request, CancellationToken cancellationToken = default);
     Task DeleteProjectAsync(Guid projectId, CancellationToken cancellationToken = default);
-    Task AddMemberAsync(Guid projectId, Guid userId, ProjectRole role, CancellationToken cancellationToken = default);
+    Task AddMemberAsync(Guid projectId, string email, ProjectRole role, CancellationToken cancellationToken = default);
+    Task<ProjectAnalyticsDto> GetProjectAnalyticsAsync(Guid projectId, CancellationToken cancellationToken = default);
 }
 
 public class ProjectService : IProjectService
@@ -174,23 +175,84 @@ public class ProjectService : IProjectService
         }
     }
 
-    public async Task AddMemberAsync(Guid projectId, Guid userId, ProjectRole role, CancellationToken cancellationToken = default)
+    public async Task AddMemberAsync(Guid projectId, string email, ProjectRole role, CancellationToken cancellationToken = default)
     {
-        var existing = await _memberRepository.FindAsync(m => m.ProjectId == projectId && m.UserId == userId, cancellationToken);
+        var users = await _userRepository.FindAsync(u => u.Email.ToLower() == email.Trim().ToLower(), cancellationToken);
+        var user = users.FirstOrDefault();
+        if (user == null)
+        {
+            throw new KeyNotFoundException($"Không tìm thấy người dùng có email '{email}'.");
+        }
+
+        var existing = await _memberRepository.FindAsync(m => m.ProjectId == projectId && m.UserId == user.Id, cancellationToken);
         if (existing.Any())
         {
-            throw new InvalidOperationException("Thành viên đã ở trong dự án này.");
+            throw new InvalidOperationException("Thành viên này đã ở trong dự án.");
         }
 
         var member = new ProjectMember
         {
             ProjectId = projectId,
-            UserId = userId,
+            UserId = user.Id,
             Role = role
         };
 
         await _memberRepository.AddAsync(member, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
-}
 
+    /// <summary>
+    /// Kế thừa bài toán allocate-task-statistic từ Talgent
+    /// Thống kê tỷ lệ phân bổ công việc theo thành viên và tiến độ dự án
+    /// </summary>
+    public async Task<ProjectAnalyticsDto> GetProjectAnalyticsAsync(Guid projectId, CancellationToken cancellationToken = default)
+    {
+        var project = await _projectRepository.GetByIdAsync(projectId, cancellationToken);
+        if (project == null) throw new KeyNotFoundException("Không tìm thấy dự án.");
+
+        var tasks = await _taskRepository.FindAsync(t => t.ProjectId == projectId, cancellationToken);
+        var members = await _memberRepository.FindAsync(m => m.ProjectId == projectId, cancellationToken);
+        var users = await _userRepository.GetAllAsync(cancellationToken);
+
+        var totalTasks = tasks.Count;
+        var todoTasks = tasks.Count(t => t.Status == ProjectTaskStatus.Todo);
+        var inProgressTasks = tasks.Count(t => t.Status == ProjectTaskStatus.InProgress);
+        var inReviewTasks = tasks.Count(t => t.Status == ProjectTaskStatus.InReview);
+        var doneTasks = tasks.Count(t => t.Status == ProjectTaskStatus.Done);
+
+        var completionRate = totalTasks > 0 ? Math.Round((decimal)doneTasks / totalTasks * 100, 1) : 0;
+
+        var memberAllocations = new List<MemberTaskAllocationDto>();
+        foreach (var m in members)
+        {
+            var user = users.FirstOrDefault(u => u.Id == m.UserId);
+            if (user == null) continue;
+
+            var memberTasks = tasks.Where(t => t.AssigneeId == user.Id).ToList();
+            var memberTotal = memberTasks.Count;
+            var memberDone = memberTasks.Count(t => t.Status == ProjectTaskStatus.Done);
+            var allocation = totalTasks > 0 ? Math.Round((decimal)memberTotal / totalTasks * 100, 1) : 0;
+
+            memberAllocations.Add(new MemberTaskAllocationDto(
+                user.Id,
+                user.FullName,
+                user.Email,
+                memberTotal,
+                memberDone,
+                allocation
+            ));
+        }
+
+        return new ProjectAnalyticsDto(
+            project.Id,
+            project.Name,
+            totalTasks,
+            todoTasks,
+            inProgressTasks,
+            inReviewTasks,
+            doneTasks,
+            completionRate,
+            memberAllocations
+        );
+    }
+}

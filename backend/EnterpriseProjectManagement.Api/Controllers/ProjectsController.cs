@@ -79,17 +79,34 @@ public class ProjectsController : ControllerBase
     }
 
     [HttpPost("{id:guid}/members")]
-    public async Task<IActionResult> AddMember(Guid id, [FromQuery] Guid userId, [FromQuery] ProjectRole role, CancellationToken cancellationToken)
+    public async Task<IActionResult> AddMember(Guid id, [FromQuery] string email, [FromQuery] ProjectRole role, CancellationToken cancellationToken)
     {
         try
         {
-            await _projectService.AddMemberAsync(id, userId, role, cancellationToken);
+            await _projectService.AddMemberAsync(id, email, role, cancellationToken);
             return Ok(new { message = "Đã thêm thành viên vào dự án thành công." });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
         }
         catch (InvalidOperationException ex)
         {
             return BadRequest(new { message = ex.Message });
         }
     }
-}
 
+    [HttpGet("{id:guid}/analytics")]
+    public async Task<IActionResult> GetProjectAnalytics(Guid id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var analytics = await _projectService.GetProjectAnalyticsAsync(id, cancellationToken);
+            return Ok(analytics);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+}

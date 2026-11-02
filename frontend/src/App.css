@@ -654,3 +654,152 @@ input:focus, textarea:focus {
   grid-template-columns: 1fr 1fr;
   gap: 1rem;
 }
+
+
+/* Tabs Switcher */
+.tabs-bar {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.tab-btn {
+  background: none;
+  border: none;
+  padding: 0.75rem 1.25rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.tab-btn:hover {
+  color: var(--primary);
+}
+
+.tab-btn.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+.header-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+/* Analytics Layout */
+.analytics-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.stats-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.5rem;
+}
+
+.stat-card {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  padding: 1.5rem;
+  border-radius: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.stat-label {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.stat-value {
+  font-size: 2rem;
+  font-weight: 800;
+}
+
+.text-success { color: #10b981; }
+.text-warning { color: #f59e0b; }
+
+.analytics-card {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  padding: 1.75rem;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.analytics-card h3 {
+  font-size: 1.2rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.section-desc {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-top: 0.25rem;
+  margin-bottom: 1.5rem;
+}
+
+/* Data Table */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.data-table th {
+  background: #f8fafc;
+  padding: 0.875rem 1rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #475569;
+  border-bottom: 1px solid var(--border);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.data-table td {
+  padding: 1rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+
+.badge-done {
+  background: #ecfdf5;
+  color: #059669;
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.8rem;
+}
+
+.allocation-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.allocation-progress .progress-bar {
+  flex: 1;
+}
+
+.allocation-progress span {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #334155;
+  min-width: 45px;
+}
