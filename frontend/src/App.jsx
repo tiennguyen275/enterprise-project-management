@@ -5,7 +5,6 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import ProjectDetail from './pages/ProjectDetail';
-import './App.css';
 
 // Component bảo vệ Route: Chỉ cho phép vào khi đã đăng nhập
 const ProtectedRoute = ({ children }) => {

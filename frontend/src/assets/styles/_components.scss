@@ -1,0 +1,305 @@
+// ==========================================
+// 3. REUSABLE UI COMPONENTS
+// ==========================================
+@use './variables' as *;
+
+// --- Buttons ---
+.btn-primary {
+  background: $primary !important;
+  color: #ffffff !important;
+  padding: 0.625rem 1.25rem;
+  border: none;
+  border-radius: $radius-md;
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: $transition-fast;
+  box-shadow: $shadow-xs;
+
+  &:hover {
+    background: $primary-hover !important;
+    transform: translateY(-1px);
+    box-shadow: $shadow-md;
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
+}
+
+.btn-secondary {
+  background: #ffffff !important;
+  color: #334155 !important;
+  border: 1px solid $border-color !important;
+  padding: 0.625rem 1.125rem;
+  border-radius: $radius-md;
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: $transition-fast;
+
+  &:hover {
+    background: $bg-muted !important;
+    border-color: #cbd5e1 !important;
+    color: #0f172a !important;
+  }
+}
+
+// --- Forms & Inputs ---
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin-bottom: 1.125rem;
+  text-align: left;
+
+  label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #1e293b !important;
+    display: block;
+  }
+
+  small {
+    color: $text-muted;
+    font-size: 0.75rem;
+  }
+
+  input, textarea, select {
+    width: 100%;
+    padding: 0.625rem 0.875rem;
+    background: #ffffff !important;
+    border: 1.5px solid #cbd5e1 !important;
+    border-radius: $radius-md;
+    font-size: 0.9375rem;
+    color: #0f172a !important;
+    outline: none;
+    transition: $transition-fast;
+
+    &::placeholder {
+      color: #94a3b8 !important;
+    }
+
+    &:focus {
+      border-color: $primary !important;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15) !important;
+    }
+  }
+
+  textarea {
+    resize: vertical;
+    min-height: 80px;
+  }
+
+  .input-with-icon {
+    position: relative;
+    display: flex;
+    align-items: center;
+
+    .input-icon {
+      position: absolute;
+      left: 0.75rem;
+      color: #64748b;
+      pointer-events: none;
+    }
+
+    input {
+      padding-left: 2.5rem;
+    }
+  }
+}
+
+.form-row {
+  display: flex;
+  gap: 1rem;
+
+  .form-group {
+    flex: 1;
+  }
+}
+
+// --- Alerts ---
+.alert-error {
+  background: $danger-bg !important;
+  color: $danger-text !important;
+  padding: 0.75rem 1rem;
+  border-radius: $radius-md;
+  font-size: 0.875rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid $danger-border !important;
+  margin-bottom: 1.25rem;
+}
+
+.alert-success {
+  background: $success-bg !important;
+  color: $success-text !important;
+  padding: 0.75rem 1rem;
+  border-radius: $radius-md;
+  font-size: 0.875rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid $success-border !important;
+  margin-bottom: 1.25rem;
+}
+
+// --- Badges ---
+.badge-code, .task-code {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.2rem 0.5rem;
+  border-radius: $radius-sm;
+  background: $primary-light;
+  color: $primary;
+  border: 1px solid $primary-border;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.badge-status {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: $radius-full;
+  background: $success-bg;
+  color: $success-text;
+  border: 1px solid $success-border;
+}
+
+.priority-badge {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 0.15rem 0.45rem;
+  border-radius: $radius-sm;
+  text-transform: uppercase;
+
+  &.priority-1 {
+    background: #f1f5f9;
+    color: #475569;
+  }
+  &.priority-2 {
+    background: #dbeafe;
+    color: #1e40af;
+  }
+  &.priority-3 {
+    background: #ffedd5;
+    color: #c2410c;
+  }
+  &.priority-4 {
+    background: #fee2e2;
+    color: #b91c1c;
+  }
+}
+
+// --- Modal Dialogs (Support both .modal-backdrop and .modal-overlay) ---
+.modal-backdrop, .modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1.5rem;
+  animation: fadeIn 0.15s ease-out;
+
+  .modal-card, .modal-content {
+    background: #ffffff !important;
+    border-radius: $radius-lg;
+    box-shadow: $shadow-modal;
+    width: 100%;
+    max-width: 540px;
+    border: 1px solid $border-color;
+    padding: 2rem;
+    animation: scaleUp 0.15s ease-out;
+    text-align: left;
+    max-height: 90vh;
+    overflow-y: auto;
+
+    h2 {
+      font-size: 1.375rem;
+      font-weight: 800;
+      color: #0f172a !important;
+      margin-bottom: 0.35rem;
+    }
+
+    p {
+      color: $text-muted;
+      font-size: 0.875rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.75rem;
+      margin-top: 1.5rem;
+    }
+  }
+}
+
+// --- Loading & Empty states ---
+.loading-state {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: $text-muted;
+  font-weight: 500;
+  font-size: 1rem;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 4.5rem 2rem;
+  background: #ffffff;
+  border-radius: $radius-lg;
+  border: 2px dashed $border-color;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.875rem;
+
+  h3 {
+    font-size: 1.125rem;
+    color: #0f172a !important;
+    margin-top: 0.5rem;
+    font-weight: 700;
+  }
+
+  p {
+    color: $text-muted;
+    max-width: 400px;
+    font-size: 0.9375rem;
+    margin-bottom: 0.5rem;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleUp {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}

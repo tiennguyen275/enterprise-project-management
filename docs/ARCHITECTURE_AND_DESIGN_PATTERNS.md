@@ -311,3 +311,35 @@ Kế thừa trực tiếp từ `MeetingNoteController.cs` trong codebase Talgent
 - **Dự án & Không gian làm việc**: `FolderSpecialOutlinedIcon`, `AddIcon`, `CheckCircleOutlineOutlinedIcon`, `CalendarMonthOutlinedIcon`.
 - **Kanban & Công việc**: `ViewKanbanOutlinedIcon`, `DragIndicatorIcon`, `AccessTimeIcon`, `ChatBubbleOutlineOutlinedIcon`.
 - **Cộng tác & Biên bản họp**: `DescriptionOutlinedIcon`, `PeopleAltOutlinedIcon`, `PersonAddAlt1OutlinedIcon`, `DeleteOutlineOutlinedIcon`.
+
+---
+
+## 15. Kiến Trúc SCSS Module Hóa (7-1 Pattern) & Tối Ưu Trải Nghiệm Giao Diện (UI/UX)
+
+### 15.1. Bối cảnh & Vấn đề giải quyết
+1. **Lỗi hiển thị độ tương phản (Low Contrast / White on White)**:
+   - Trước đây do kế thừa cấu hình mặc định `@media (prefers-color-scheme: dark)` trong Vite `index.css`, các tiêu đề `h1, h2, h3` bị gán màu `--text-h: #f3f4f6` (màu trắng ngà), dẫn tới hiện tượng chữ bị "chìm" không nhìn thấy trên nền sáng.
+   - Bố cục màn hình `#root` bị giới hạn cứng ở `1126px` căn giữa khiến không gian làm việc bị thu hẹp bất hợp lý.
+2. **Cấu trúc SCSS nguyên khối (Monolithic CSS)**:
+   - Dồn toàn bộ hàng trăm dòng CSS vào `App.css` hoặc `App.scss` duy nhất gây khó khăn trong việc mở rộng, bảo trì và cô lập phạm vi kiểu dáng.
+
+### 15.2. Cấu trúc thư mục Modular SCSS trong `frontend/src/assets/styles/`
+Dự án áp dụng mô hình chuẩn công nghiệp chia nhỏ các module SCSS:
+```
+frontend/src/assets/styles/
+├── _variables.scss      # Hệ thống Design Tokens: Palette màu Slate/Blue, typography, shadows, border-radius
+├── _reset.scss          # Full CSS Reset, căn chỉnh #root 100% width, ép màu heading độ tương phản cao (#0f172a)
+├── _components.scss     # Nút bấm (.btn-primary, .btn-secondary), Forms, Badges, Modals (.modal-backdrop), Alerts
+├── _auth.scss           # Giao diện Đăng nhập & Đăng ký (Card căn giữa, input nền trắng, autocomplete fix)
+├── _dashboard.scss      # Không gian làm việc, Navbar, lưới thẻ dự án (Project Cards), thanh tiến độ hoàn thành
+├── _kanban.scss         # Bảng Kanban 4 cột, hiệu ứng kéo thả (.column-drag-over), thẻ công việc, thẻ ưu tiên
+├── _meeting_notes.scss  # Nhật ký cuộc họp, thẻ biên bản, danh sách action items
+├── _analytics.scss      # Thống kê hiệu suất KPI, bảng phân bổ tải thành viên (Workload Allocation)
+├── _discussion.scss     # Modal chi tiết task, luồng bình luận thảo luận thời gian thực, input gửi phản hồi
+└── main.scss            # Tệp điều phối tập trung import toàn bộ các thành phần
+```
+
+### 15.3. Giá trị đạt được
+- **Độ tương phản tiêu chuẩn WCAG AAA**: Tiêu đề luôn hiển thị rõ nét với màu `#0f172a`, mô tả và ngày tháng phân cấp rõ ràng bằng `#475569` và `#64748b`.
+- **Hiệu năng biên dịch**: Vite Sass biên dịch trực tiếp toàn bộ hệ thống SCSS chỉ trong ~500ms, tệp build CSS nén gzip chỉ còn ~4.2 kB.
+

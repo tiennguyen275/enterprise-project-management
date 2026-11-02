@@ -1,0 +1,14 @@
+// ==========================================
+// ENTERPRISE PROJECT MANAGEMENT - MAIN SCSS
+// Architecture: Modular SCSS 7-1 pattern
+// ==========================================
+
+@use './variables';
+@use './reset';
+@use './components';
+@use './auth';
+@use './dashboard';
+@use './kanban';
+@use './meeting_notes';
+@use './analytics';
+@use './discussion';

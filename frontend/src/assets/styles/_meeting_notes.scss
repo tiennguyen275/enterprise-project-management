@@ -1,0 +1,131 @@
+// ==========================================
+// 7. MEETING NOTES & ACTION ITEMS
+// ==========================================
+@use './variables' as *;
+
+.notes-layout {
+  background: #ffffff;
+  border-radius: $radius-lg;
+  border: 1px solid $border-color;
+  box-shadow: $shadow-xs;
+  padding: 2rem;
+
+  .notes-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+
+    h3 {
+      font-size: 1.375rem;
+      font-weight: 800;
+      color: #0f172a !important;
+      margin-bottom: 0.25rem;
+    }
+
+    p {
+      color: $text-muted;
+      font-size: 0.875rem;
+    }
+  }
+
+  .notes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    gap: 1.5rem;
+
+    .note-card {
+      background: #ffffff;
+      border: 1px solid $border-color;
+      border-radius: $radius-md;
+      padding: 1.25rem;
+      box-shadow: $shadow-xs;
+      display: flex;
+      flex-direction: column;
+      transition: $transition-fast;
+      position: relative;
+      text-align: left;
+
+      &:hover {
+        box-shadow: $shadow-md;
+        border-color: #cbd5e1;
+      }
+
+      .note-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 0.75rem;
+
+        h4 {
+          font-size: 1.125rem;
+          font-weight: 700;
+          color: #0f172a !important;
+        }
+
+        .btn-delete {
+          background: transparent;
+          border: none;
+          color: $text-light;
+          cursor: pointer;
+          padding: 0.25rem;
+          border-radius: $radius-sm;
+          transition: $transition-fast;
+
+          &:hover {
+            color: $danger;
+            background: $danger-bg;
+          }
+        }
+      }
+
+      .note-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        font-size: 0.8125rem;
+        color: $text-muted;
+        margin-bottom: 1rem;
+
+        span {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.35rem;
+        }
+      }
+
+      .note-content {
+        font-size: 0.875rem;
+        color: $text-secondary;
+        line-height: 1.6;
+        margin-bottom: 1rem;
+        white-space: pre-wrap;
+      }
+
+      .note-action-items {
+        background: #f8fafc;
+        border-radius: $radius-sm;
+        padding: 0.75rem 1rem;
+        border-left: 3px solid $primary;
+
+        strong {
+          display: block;
+          font-size: 0.75rem;
+          font-weight: 700;
+          text-transform: uppercase;
+          color: $primary;
+          margin-bottom: 0.35rem;
+          letter-spacing: 0.05em;
+        }
+
+        p {
+          font-size: 0.8125rem;
+          color: $text-body;
+          line-height: 1.5;
+        }
+      }
+    }
+  }
+}

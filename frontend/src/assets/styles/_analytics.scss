@@ -1,0 +1,144 @@
+// ==========================================
+// 8. ANALYTICS & WORKLOAD ALLOCATION
+// ==========================================
+@use './variables' as *;
+
+.analytics-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+
+  // Stats KPI Grid
+  .stats-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.25rem;
+
+    @media (max-width: 900px) {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    @media (max-width: 480px) {
+      grid-template-columns: 1fr;
+    }
+
+    .stat-card {
+      background: #ffffff;
+      border: 1px solid $border-color;
+      border-radius: $radius-lg;
+      padding: 1.5rem;
+      box-shadow: $shadow-xs;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      text-align: left;
+
+      .stat-label {
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: $text-muted;
+      }
+
+      .stat-value {
+        font-size: 1.75rem;
+        font-weight: 800;
+        color: #0f172a !important;
+        line-height: 1.2;
+
+        &.text-success { color: $success !important; }
+        &.text-primary { color: $primary !important; }
+        &.text-warning { color: $warning !important; }
+      }
+    }
+  }
+
+  // Analytics Card & Table
+  .analytics-card {
+    background: #ffffff;
+    border: 1px solid $border-color;
+    border-radius: $radius-lg;
+    padding: 1.75rem;
+    box-shadow: $shadow-xs;
+    text-align: left;
+
+    h3 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #0f172a !important;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .section-desc {
+      color: $text-muted;
+      font-size: 0.875rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+
+      th {
+        padding: 0.75rem 1rem;
+        background: #f8fafc;
+        color: #475569;
+        font-weight: 700;
+        font-size: 0.8125rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        border-bottom: 1px solid $border-color;
+      }
+
+      td {
+        padding: 0.875rem 1rem;
+        border-bottom: 1px solid #f1f5f9;
+        color: $text-body;
+        font-size: 0.875rem;
+
+        strong {
+          color: #0f172a;
+        }
+
+        .badge-done {
+          background: $success-bg;
+          color: $success-text;
+          font-size: 0.75rem;
+          font-weight: 700;
+          padding: 0.2rem 0.5rem;
+          border-radius: $radius-sm;
+        }
+
+        .allocation-progress {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+
+          .progress-bar {
+            flex: 1;
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: $radius-full;
+            overflow: hidden;
+
+            .progress-fill {
+              height: 100%;
+              background: $primary;
+              border-radius: $radius-full;
+              transition: width 0.4s ease;
+            }
+          }
+
+          span {
+            font-size: 0.8125rem;
+            font-weight: 700;
+            color: $text-body;
+            min-width: 40px;
+          }
+        }
+      }
+    }
+  }
+}
