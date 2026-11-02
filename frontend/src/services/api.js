@@ -1,7 +1,8 @@
 import axios from 'axios';
 
+// Backend .NET Core đang chạy tại port 5164
 const api = axios.create({
-  baseURL: 'https://localhost:5001/api', // hoặc 'http://localhost:5000/api'
+  baseURL: 'http://localhost:5164/api',
   headers: {
     'Content-Type': 'application/json',
   },
