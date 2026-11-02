@@ -238,3 +238,23 @@ Tầng `Infrastructure` giải quyết các bài toán kỹ thuật cụ thể m
 - Nhấp vào bất kỳ thẻ công việc nào sẽ mở modal chi tiết:
   - Xem mô tả đầy đủ.
   - Phân hệ **Thảo luận (Comments)** thời gian thực: Cho phép thành viên trong dự án trao đổi, ghi chú kết quả công việc, lưu lại dấu thời gian và người bình luận.
+
+
+---
+
+## 11. Phân Hệ Thống Kê Hiệu Suất & Phân Bổ Tải (Analytics & Workload Allocation)
+
+Kế thừa trực tiếp từ bài toán thực tế `allocate-task-statistic` của dự án Talgent:
+
+### 1. Thuật toán Phân Bổ Tải (`AllocateTaskStatistic`)
+- **Tỷ lệ hoàn thành dự án (`CompletionRate`)**: 
+  $$\text{CompletionRate} = \frac{\text{DoneTasks}}{\text{TotalTasks}} \times 100\%$$
+- **Tỷ lệ phân bổ công việc theo từng thành viên (`AllocationPercentage`)**:
+  $$\text{AllocationPercentage} = \frac{\text{MemberTotalTasks}}{\text{ProjectTotalTasks}} \times 100\%$$
+- Thước đo này giúp Ban Quản lý Dự án (PM) đánh giá trực quan xem thành viên nào đang bị quá tải (overload) hoặc ai đang có ít việc để cân đối lại nhân lực.
+
+### 2. Quản lý Đội Ngũ & Mời Thành Viên (`AddMember`)
+- Hỗ trợ nhập Email để tìm kiếm người dùng và gán quyền trực tiếp vào dự án với các vai trò:
+  - `Project Manager`: Quản lý toàn quyền dự án.
+  - `Member`: Thành viên thực thi công việc.
+  - `Viewer`: Khách hàng hoặc đối tác theo dõi tiến độ.
