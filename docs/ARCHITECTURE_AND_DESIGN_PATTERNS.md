@@ -278,3 +278,17 @@ Kế thừa trực tiếp từ `MeetingNoteController.cs` trong codebase Talgent
 - `MeetingNoteService.cs` cung cấp CRUD độc lập qua `IMeetingNoteService`.
 - `MeetingNotesController.cs` bảo vệ toàn diện với `[Authorize]`.
 - Frontend tích hợp thành một Tab độc lập `Biên Bản Cuộc Họp` trên màn hình dự án.
+
+
+---
+
+## 13. Tương Tác Kéo Thả Trực Quan (HTML5 Drag and Drop Kanban)
+
+Được triển khai trên nhánh `feature/drag-and-drop-kanban`:
+
+### 1. Kỹ thuật Triển khai (HTML5 Drag and Drop API)
+- **Tối ưu hóa không phụ thuộc thư viện nặng**: Sử dụng trực tiếp API `drag & drop` gốc của trình duyệt (HTML5 Drag and Drop), không cần cài đặt thêm gói npm bên ngoài, giúp ứng dụng nhẹ và mượt mà.
+- **Sự kiện Kéo Thả**:
+  - `onDragStart`: Lưu `taskId` vào `dataTransfer`.
+  - `onDragOver` & `onDragLeave`: Cung cấp phản hồi thị giác (Visual feedback) viền xanh dashed (`column-drag-over`) khi rê chuột qua cột.
+  - `onDrop`: Lấy `colId` đích, cập nhật giao diện lập tức (Optimistic UI update) và gọi API `PUT /api/tasks/{id}` đồng bộ xuống cơ sở dữ liệu.

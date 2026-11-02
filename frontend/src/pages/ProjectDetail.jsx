@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import api from '../services/api';
 import { 
   ArrowLeft, Plus, Clock, AlertCircle, 
-  MessageSquare, UserPlus, Users, BarChart3, Columns, FileText, Calendar, Trash2, X 
+  MessageSquare, UserPlus, Users, BarChart3, Columns, FileText, Calendar, Trash2, X, Move 
 } from 'lucide-react';
 
 const COLUMNS = [
@@ -22,6 +22,10 @@ export default function ProjectDetail() {
   const [analytics, setAnalytics] = useState(null);
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Drag and Drop state
+  const [draggedTaskId, setDraggedTaskId] = useState(null);
+  const [dragOverColId, setDragOverColId] = useState(null);
 
   // Modal tạo công việc
   const [showTaskModal, setShowTaskModal] = useState(false);
@@ -99,7 +103,10 @@ export default function ProjectDetail() {
   const handleUpdateStatus = async (taskId, newStatus) => {
     try {
       const task = tasks.find(t => t.id === taskId);
-      if (!task) return;
+      if (!task || task.status === newStatus) return;
+
+      // Cập nhật state cục bộ ngay lập tức (Optimistic UI update)
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
 
       await api.put(`/tasks/${taskId}`, {
         title: task.title,
@@ -112,11 +119,43 @@ export default function ProjectDetail() {
         assigneeId: task.assigneeId
       });
 
-      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
+      // Tải lại analytics ngầm
       api.get(`/projects/${id}/analytics`).then(res => setAnalytics(res.data));
     } catch (err) {
       console.error('Lỗi cập nhật trạng thái:', err);
+      fetchProjectData(); // Rollback nếu lỗi mạng
     }
+  };
+
+  // Drag and drop handlers
+  const handleDragStart = (e, taskId) => {
+    setDraggedTaskId(taskId);
+    e.dataTransfer.setData('text/plain', taskId);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e, colId) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverColId !== colId) {
+      setDragOverColId(colId);
+    }
+  };
+
+  const handleDragLeave = (e, colId) => {
+    if (dragOverColId === colId) {
+      setDragOverColId(null);
+    }
+  };
+
+  const handleDrop = (e, colId) => {
+    e.preventDefault();
+    setDragOverColId(null);
+    const taskId = e.dataTransfer.getData('text/plain') || draggedTaskId;
+    if (taskId) {
+      handleUpdateStatus(taskId, colId);
+    }
+    setDraggedTaskId(null);
   };
 
   const handleInviteMember = async (e) => {
@@ -240,7 +279,7 @@ export default function ProjectDetail() {
           onClick={() => setActiveTab('kanban')}
         >
           <Columns size={18} />
-          <span>Bảng Kanban</span>
+          <span>Bảng Kanban (Kéo Thả)</span>
         </button>
         <button 
           className={`tab-btn ${activeTab === 'notes' ? 'active' : ''}`}
@@ -258,13 +297,21 @@ export default function ProjectDetail() {
         </button>
       </div>
 
-      {/* Tab 1: Kanban Board */}
+      {/* Tab 1: Kanban Board với tính năng Kéo Thả (Drag and Drop) */}
       {activeTab === 'kanban' && (
         <div className="kanban-board">
           {COLUMNS.map(col => {
             const colTasks = tasks.filter(t => t.status === col.id);
+            const isOver = dragOverColId === col.id;
+
             return (
-              <div key={col.id} className="kanban-column">
+              <div 
+                key={col.id} 
+                className={`kanban-column ${isOver ? 'column-drag-over' : ''}`}
+                onDragOver={(e) => handleDragOver(e, col.id)}
+                onDragLeave={(e) => handleDragLeave(e, col.id)}
+                onDrop={(e) => handleDrop(e, col.id)}
+              >
                 <div className="column-header" style={{ borderTopColor: col.color }}>
                   <h3>{col.title}</h3>
                   <span className="count-badge">{colTasks.length}</span>
@@ -272,12 +319,16 @@ export default function ProjectDetail() {
 
                 <div className="task-list">
                   {colTasks.length === 0 ? (
-                    <div className="empty-column-placeholder">Chưa có công việc</div>
+                    <div className="empty-column-placeholder">
+                      {isOver ? 'Thả công việc vào đây...' : 'Chưa có công việc'}
+                    </div>
                   ) : (
                     colTasks.map(task => (
                       <div 
                         key={task.id} 
-                        className="kanban-task-card"
+                        className={`kanban-task-card ${draggedTaskId === task.id ? 'is-dragging' : ''}`}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, task.id)}
                         onClick={() => handleOpenTaskDetail(task.id)}
                       >
                         <div className="task-card-top">
@@ -297,6 +348,7 @@ export default function ProjectDetail() {
                         )}
 
                         <div className="task-card-actions">
+                          <span className="drag-hint"><Move size={12} /> Kéo thả hoặc chọn</span>
                           <select 
                             value={task.status} 
                             onClick={(e) => e.stopPropagation()}
@@ -318,7 +370,7 @@ export default function ProjectDetail() {
         </div>
       )}
 
-      {/* Tab 2: Meeting Notes (Kế thừa MeetingNoteController từ Talgent) */}
+      {/* Tab 2: Meeting Notes */}
       {activeTab === 'notes' && (
         <div className="notes-layout">
           <div className="notes-header">
