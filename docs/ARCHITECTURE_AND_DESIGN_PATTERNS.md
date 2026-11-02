@@ -190,3 +190,27 @@ Tầng `Infrastructure` giải quyết các bài toán kỹ thuật cụ thể m
 - `PUT /api/tasks/{id}`: Cập nhật trạng thái (`Todo`, `InProgress`, `InReview`, `Done`), độ ưu tiên (`Low`, `Medium`, `High`, `Urgent`), số giờ thực tế (`ActualHours`).
 - `POST /api/tasks/{id}/comments`: Thảo luận trao đổi trực tiếp trên từng Task.
 - **Bảo mật**: Mọi API đều yêu cầu Header `Authorization: Bearer <token>`, tự động lấy `UserId` từ Claims để phân quyền.
+
+
+---
+
+## 9. Chi tiết Giao Diện Người Dùng (Frontend ReactJS + Vite)
+
+Được triển khai trên nhánh `feature/frontend-auth-and-dashboard`:
+
+### 1. Kiến trúc Client SPA (Single Page Application)
+- **Công nghệ**: ReactJS thuần (JavaScript JSX, không dùng TypeScript giúp mã nguồn nhẹ và dễ tiếp cận), Vite bundler.
+- **Quản lý Định tuyến (Routing)**: `react-router-dom` v7 với cơ chế `ProtectedRoute` bảo vệ các trang Dashboard, tự động điều hướng người dùng chưa đăng nhập về `/login`.
+- **Dịch vụ mạng (`api.js`)**:
+  - Tích hợp **Axios Interceptors**:
+    - Request: Tự động trích xuất Token từ `localStorage` và gắn Header `Authorization: Bearer <token>`.
+    - Response: Tự động bắt mã lỗi `401 Unauthorized` khi Token hết hạn để xóa phiên và chuyển hướng người dùng đăng nhập lại.
+- **Trạng thái Xác thực (`AuthContext.jsx`)**:
+  - Cung cấp hook `useAuth()` cho toàn bộ cây component để truy xuất thông tin `user`, hàm `login()`, `register()`, `logout()`.
+
+### 2. Các trang màn hình chính:
+- **Trang Đăng Nhập (`Login.jsx`)** & **Đăng Ký (`Register.jsx`)**: Form hiện đại với icon trực quan, thông báo lỗi validation chi tiết.
+- **Trang Không Gian Làm Việc (`Dashboard.jsx`)**:
+  - Thống kê tỷ lệ hoàn thành công việc theo từng dự án dưới dạng Progress Bar trực quan.
+  - Modal tạo mới dự án nhanh với mã dự án viết hoa tự động (`PRJ`, `PORTAL`).
+  - Thẻ thông tin dự án hiển thị trạng thái và số lượng công việc hoàn thành.
