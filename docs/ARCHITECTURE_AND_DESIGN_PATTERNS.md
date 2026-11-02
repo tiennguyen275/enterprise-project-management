@@ -82,3 +82,27 @@ Khi thầy cô hỏi: *"Em đã áp dụng SOLID như thế nào trong dự án?
    - Tiến độ (`Todo`, `InProgress`, `InReview`, `Done`, `Blocked`).
    - Độ ưu tiên (`Low`, `Medium`, `High`, `Urgent`).
 5. **TaskComment**: Bình luận, thảo luận trực tiếp trên từng Task.
+
+
+
+---
+
+## 5. Quy Trình Phân Nhánh Git (Git Flow Workflow)
+
+Dự án áp dụng quy chuẩn Git Flow để theo dõi tiến trình và quản lý lịch sử commit minh bạch:
+
+```text
+main (hoặc master)  ──────────────────────────────────────────● (Bản phát hành ổn định)
+                      ▲                                      ▲
+                      │                                      │ merge khi hoàn tất release
+dev                   ●──────────●──────────●────────────────● (Nhánh phát triển tích hợp)
+                                  ▲          ▲
+                     feature/...  ●──────────┘ merge via PR/rebase
+```
+
+### Quy tắc làm việc:
+1. **`main` (hoặc `master`)**: Nhánh sản phẩm hoàn thiện, chỉ merge khi tính năng đã được kiểm thử đầy đủ và sẵn sàng báo cáo/public.
+2. **`dev`**: Nhánh trung tâm cho toàn bộ quá trình phát triển (development). Tất cả các tính năng hoàn thành sẽ được merge về đây.
+3. **`feature/<tên-chức-năng>`**: Mỗi tính năng, module hoặc tầng kiến trúc sẽ tách thành 1 branch riêng từ `dev`:
+   - Ví dụ: `feature/infrastructure-ef-core`, `feature/auth-jwt`, `feature/project-crud`, `feature/frontend-dashboard`...
+   - Sau khi hoàn thành và test xong trên feature branch, sẽ merge về `dev`.
