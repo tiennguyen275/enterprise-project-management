@@ -214,3 +214,27 @@ Tầng `Infrastructure` giải quyết các bài toán kỹ thuật cụ thể m
   - Thống kê tỷ lệ hoàn thành công việc theo từng dự án dưới dạng Progress Bar trực quan.
   - Modal tạo mới dự án nhanh với mã dự án viết hoa tự động (`PRJ`, `PORTAL`).
   - Thẻ thông tin dự án hiển thị trạng thái và số lượng công việc hoàn thành.
+
+
+---
+
+## 10. Chi tiết Bảng Kanban & Tương Tác Công Việc (Kanban Board & Task Detail)
+
+Được triển khai trên nhánh `feature/project-details-and-kanban`:
+
+### 1. Luồng Bảng Kanban Dự Án (`ProjectDetail.jsx`)
+- Hiển thị theo 4 cột tiến độ chuẩn Agile/Scrum:
+  - **Cần làm (Todo)**
+  - **Đang làm (In Progress)**
+  - **Chờ duyệt (In Review)**
+  - **Hoàn thành (Done)**
+- Mỗi thẻ công việc (Task Card) hiển thị:
+  - Mã công việc sinh tự động (`TaskCode`: ví dụ `PRJ-1`).
+  - Huy hiệu độ ưu tiên (`Thấp`, `Trung bình`, `Cao`, `Khẩn cấp`).
+  - Hạn hoàn thành (`DueDate`).
+  - Hộp chọn nhanh trạng thái (Status Dropdown) cho phép cập nhật tiến độ công việc ngay lập tức trên UI và gọi API đồng bộ xuống Database.
+
+### 2. Chi tiết Công Việc & Thảo Luận Trao Đổi
+- Nhấp vào bất kỳ thẻ công việc nào sẽ mở modal chi tiết:
+  - Xem mô tả đầy đủ.
+  - Phân hệ **Thảo luận (Comments)** thời gian thực: Cho phép thành viên trong dự án trao đổi, ghi chú kết quả công việc, lưu lại dấu thời gian và người bình luận.
