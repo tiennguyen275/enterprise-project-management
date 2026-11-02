@@ -166,3 +166,27 @@ Tầng `Infrastructure` giải quyết các bài toán kỹ thuật cụ thể m
 - **Middleware Authentication & Authorization**:
   - `builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)...`
   - Đảm bảo các Controller sau này chỉ cần gắn attribute `[Authorize]` là tự động bảo vệ endpoint, từ chối request không có hoặc sai Token (`401 Unauthorized`).
+
+
+---
+
+## 8. Chi tiết Phân Hệ Quản Lý Dự Án & Công Việc (Project & Task Management)
+
+Được triển khai trên nhánh `feature/project-task-management`:
+
+### 1. Phân hệ Dự án (`ProjectsController` & `ProjectService`)
+- `GET /api/projects`: Lấy toàn bộ danh sách dự án mà người dùng hiện tại tham gia kèm tỷ lệ hoàn thành công việc (`TotalTasks`, `CompletedTasks`).
+- `GET /api/projects/{id}`: Xem chi tiết dự án, danh sách thành viên và vai trò (`Owner`, `ProjectManager`, `Member`, `Viewer`).
+- `POST /api/projects`: Tạo dự án mới, tự động gán người tạo làm `Owner`.
+- `PUT /api/projects/{id}` & `DELETE /api/projects/{id}`: Cập nhật và xóa mềm (Soft Delete).
+- `POST /api/projects/{id}/members`: Mời thêm thành viên vào dự án.
+
+### 2. Phân hệ Công việc (`TasksController` & `TaskService`)
+- `GET /api/tasks/project/{projectId}`: Lấy danh sách công việc của dự án theo dạng cây (Gốc và Subtasks).
+- `POST /api/tasks`: 
+  - **Tự động sinh mã Task (`TaskCode`)**: Dựa trên mã dự án (ví dụ `PRJ-1`, `PRJ-2`).
+  - Hỗ trợ gán người phụ trách (`AssigneeId`), hạn hoàn thành (`DueDate`), số giờ ước lượng (`EstimatedHours`).
+  - Hỗ trợ tạo Subtask bằng cách truyền `ParentTaskId`.
+- `PUT /api/tasks/{id}`: Cập nhật trạng thái (`Todo`, `InProgress`, `InReview`, `Done`), độ ưu tiên (`Low`, `Medium`, `High`, `Urgent`), số giờ thực tế (`ActualHours`).
+- `POST /api/tasks/{id}/comments`: Thảo luận trao đổi trực tiếp trên từng Task.
+- **Bảo mật**: Mọi API đều yêu cầu Header `Authorization: Bearer <token>`, tự động lấy `UserId` từ Claims để phân quyền.
