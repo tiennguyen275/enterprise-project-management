@@ -1,0 +1,269 @@
+// ==========================================
+// 6. PROJECT DETAIL & KANBAN BOARD
+// ==========================================
+@use './variables' as *;
+
+.project-detail-layout {
+  min-height: 100vh;
+  width: 100%;
+  background-color: $bg-body;
+  padding: 1.75rem 2.25rem;
+  max-width: 1440px;
+  margin: 0 auto;
+
+  // Header Section
+  .project-header {
+    background: #ffffff;
+    border-radius: $radius-lg;
+    border: 1px solid $border-color;
+    box-shadow: $shadow-xs;
+    padding: 1.5rem 2rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+
+    .header-left {
+      .btn-back {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: $text-muted;
+        font-size: 0.875rem;
+        font-weight: 600;
+        margin-bottom: 0.75rem;
+        text-decoration: none;
+        transition: $transition-fast;
+
+        &:hover {
+          color: $primary;
+        }
+      }
+
+      .title-group {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+        margin-bottom: 0.35rem;
+
+        h2 {
+          font-size: 1.625rem;
+          font-weight: 800;
+          color: #0f172a !important;
+          letter-spacing: -0.02em;
+        }
+      }
+
+      .project-desc {
+        color: $text-secondary;
+        font-size: 0.9375rem;
+      }
+    }
+
+    .header-right.header-actions {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+    }
+  }
+
+  // Tabs Bar
+  .tabs-bar {
+    display: flex;
+    gap: 0.5rem;
+    border-bottom: 2px solid $border-color;
+    margin-bottom: 1.75rem;
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      border-bottom: 2.5px solid transparent;
+      padding: 0.75rem 1.25rem;
+      font-size: 0.9375rem;
+      font-weight: 600;
+      color: $text-muted;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: $transition-fast;
+      margin-bottom: -2px;
+
+      &:hover {
+        color: $primary;
+      }
+
+      &.active {
+        color: $primary;
+        border-bottom-color: $primary;
+        font-weight: 700;
+        background: rgba(37, 99, 235, 0.04);
+        border-top-left-radius: $radius-sm;
+        border-top-right-radius: $radius-sm;
+      }
+    }
+  }
+
+  // Kanban Board Layout
+  .kanban-board {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.25rem;
+    align-items: start;
+
+    @media (max-width: 1100px) {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    @media (max-width: 640px) {
+      grid-template-columns: 1fr;
+    }
+
+    .kanban-column {
+      background: #f8fafc;
+      border-radius: $radius-lg;
+      border: 1px solid #e2e8f0;
+      padding: 1rem;
+      min-height: 550px;
+      display: flex;
+      flex-direction: column;
+      transition: $transition-fast;
+
+      &.column-drag-over {
+        background: #e0f2fe;
+        border: 2px dashed #0284c7;
+      }
+
+      .column-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-top: 0.5rem;
+        padding-bottom: 0.75rem;
+        margin-bottom: 0.875rem;
+        border-top: 3px solid #2563eb;
+
+        h3 {
+          font-weight: 700;
+          font-size: 0.9375rem;
+          color: #0f172a !important;
+        }
+
+        .count-badge {
+          background: #e2e8f0;
+          color: #334155;
+          font-size: 0.75rem;
+          font-weight: 700;
+          padding: 0.15rem 0.5rem;
+          border-radius: $radius-full;
+        }
+      }
+
+      .task-list {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+
+        .empty-column-placeholder {
+          padding: 3rem 1rem;
+          text-align: center;
+          color: $text-light;
+          font-size: 0.8125rem;
+          font-style: italic;
+        }
+
+        .kanban-task-card {
+          background: #ffffff;
+          border-radius: $radius-md;
+          padding: 1rem;
+          border: 1px solid #e2e8f0;
+          box-shadow: $shadow-xs;
+          cursor: grab;
+          transition: $transition-fast;
+          position: relative;
+          text-align: left;
+
+          &:hover {
+            box-shadow: $shadow-md;
+            border-color: #cbd5e1;
+            transform: translateY(-2px);
+          }
+
+          &:active {
+            cursor: grabbing;
+          }
+
+          &.is-dragging {
+            opacity: 0.45;
+            border: 2px dashed $primary;
+          }
+
+          .task-card-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.625rem;
+          }
+
+          h4 {
+            font-size: 0.9375rem;
+            font-weight: 700;
+            color: #0f172a !important;
+            margin-bottom: 0.625rem;
+            line-height: 1.35;
+            cursor: pointer;
+
+            &:hover {
+              color: $primary !important;
+            }
+          }
+
+          .task-meta-due {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            font-size: 0.75rem;
+            color: $text-muted;
+            margin-bottom: 0.625rem;
+          }
+
+          .task-card-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+            padding-top: 0.5rem;
+            border-top: 1px dashed #e2e8f0;
+
+            .drag-hint {
+              font-size: 0.6875rem;
+              color: $text-light;
+              display: inline-flex;
+              align-items: center;
+              gap: 0.25rem;
+            }
+
+            .status-dropdown {
+              width: 100%;
+              padding: 0.35rem 0.5rem;
+              font-size: 0.75rem;
+              border-radius: $radius-sm;
+              border: 1px solid #cbd5e1;
+              background: #f8fafc;
+              color: #0f172a;
+              outline: none;
+              cursor: pointer;
+
+              &:focus {
+                border-color: $primary;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

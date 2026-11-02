@@ -1,0 +1,102 @@
+// ==========================================
+// 4. AUTHENTICATION (LOGIN & REGISTER)
+// ==========================================
+@use './variables' as *;
+
+.auth-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  width: 100%;
+  padding: 1.5rem;
+  background: radial-gradient(circle at 50% 0%, #e0e7ff 0%, #f8fafc 70%);
+
+  .auth-card {
+    background: #ffffff !important;
+    padding: 2.75rem 2.5rem;
+    border-radius: $radius-lg;
+    box-shadow: $shadow-lg;
+    width: 100%;
+    max-width: 440px;
+    border: 1px solid #edf2f7;
+
+    .auth-header {
+      text-align: center;
+      margin-bottom: 2rem;
+
+      .auth-icon-wrapper {
+        display: inline-flex;
+        padding: 0.875rem;
+        background: $primary-light;
+        color: $primary;
+        border-radius: $radius-full;
+        margin-bottom: 1.125rem;
+      }
+
+      h2 {
+        font-size: 1.625rem;
+        font-weight: 800;
+        color: #0f172a !important;
+        letter-spacing: -0.025em;
+        margin-bottom: 0.4rem;
+      }
+
+      p {
+        color: $text-muted;
+        font-size: 0.9375rem;
+      }
+    }
+
+    .auth-form {
+      .form-group {
+        input {
+          background-color: #ffffff !important;
+          color: #0f172a !important;
+          border: 1.5px solid #cbd5e1 !important;
+
+          &::placeholder {
+            color: #94a3b8 !important;
+          }
+
+          &:focus {
+            border-color: $primary !important;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15) !important;
+          }
+
+          &:-webkit-autofill,
+          &:-webkit-autofill:hover,
+          &:-webkit-autofill:focus {
+            -webkit-text-fill-color: #0f172a !important;
+            -webkit-box-shadow: 0 0 0px 1000px #ffffff inset !important;
+            transition: background-color 5000s ease-in-out 0s;
+          }
+        }
+      }
+
+      .btn-primary {
+        width: 100%;
+        padding: 0.75rem;
+        font-size: 0.9375rem;
+        margin-top: 0.75rem;
+      }
+    }
+
+    .auth-footer {
+      text-align: center;
+      margin-top: 1.75rem;
+      font-size: 0.875rem;
+      color: $text-muted;
+
+      a {
+        color: $primary;
+        text-decoration: none;
+        font-weight: 600;
+
+        &:hover {
+          text-decoration: underline;
+        }
+      }
+    }
+  }
+}

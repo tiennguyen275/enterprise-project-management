@@ -1,0 +1,77 @@
+// ==========================================
+// 1. DESIGN TOKENS & VARIABLES
+// ==========================================
+
+// Brand Colors
+$primary: #2563eb;
+$primary-hover: #1d4ed8;
+$primary-light: #eff6ff;
+$primary-border: #bfdbfe;
+
+// Neutral Colors (Enterprise Slate)
+$bg-body: #f8fafc;
+$bg-surface: #ffffff;
+$bg-muted: #f1f5f9;
+$bg-subtle: #f8fafc;
+
+$text-title: #0f172a;      // Dark high-contrast for all h1, h2, h3, titles
+$text-body: #334155;       // Crisp readable body text
+$text-secondary: #475569;  // Secondary descriptions
+$text-muted: #64748b;      // Muted placeholders, timestamps
+$text-light: #94a3b8;      // De-emphasized hints
+
+// Border & Divider
+$border-light: #f1f5f9;
+$border-color: #e2e8f0;
+$border-input: #cbd5e1;
+$border-focus: #3b82f6;
+
+// Semantic & Status Colors
+$success: #10b981;
+$success-bg: #ecfdf5;
+$success-border: #a7f3d0;
+$success-text: #065f46;
+
+$warning: #f59e0b;
+$warning-bg: #fffbeb;
+$warning-border: #fde68a;
+$warning-text: #92400e;
+
+$danger: #ef4444;
+$danger-bg: #fef2f2;
+$danger-border: #fecaca;
+$danger-text: #991b1b;
+
+$info: #0ea5e9;
+$info-bg: #f0f9ff;
+$info-border: #bae6fd;
+$info-text: #0369a1;
+
+// Task Columns & Priority
+$col-todo: #64748b;
+$col-in-progress: #2563eb;
+$col-review: #d97706;
+$col-done: #10b981;
+
+// Spacing & Border Radius
+$radius-xs: 0.25rem;
+$radius-sm: 0.375rem;
+$radius-md: 0.5rem;
+$radius-lg: 0.75rem;
+$radius-xl: 1rem;
+$radius-full: 9999px;
+
+// Elevation Shadows
+$shadow-xs: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
+$shadow-sm: 0 1px 3px 0 rgba(15, 23, 42, 0.08), 0 1px 2px -1px rgba(15, 23, 42, 0.04);
+$shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.07), 0 2px 4px -2px rgba(15, 23, 42, 0.05);
+$shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -4px rgba(15, 23, 42, 0.04);
+$shadow-modal: 0 20px 25px -5px rgba(15, 23, 42, 0.15), 0 8px 10px -6px rgba(15, 23, 42, 0.1);
+
+// Typography
+$font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+$font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+
+// Transitions
+$transition-fast: all 0.15s ease-in-out;
+$transition-base: all 0.2s ease-in-out;
