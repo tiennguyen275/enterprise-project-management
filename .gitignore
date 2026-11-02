@@ -1,0 +1,25 @@
+# Visual Studio & .NET Core
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.dotSettings*
+appsettings.Development.json
+
+# Node & Frontend
+node_modules/
+dist/
+.vite/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
