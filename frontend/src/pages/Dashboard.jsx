@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { 
   FolderGit2, CheckCircle2, Clock, Plus, LogOut, 
@@ -8,6 +9,7 @@ import {
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -34,10 +36,11 @@ export default function Dashboard() {
     e.preventDefault();
     setCreateError('');
     try {
-      await api.post('/projects', newProject);
+      const res = await api.post('/projects', newProject);
       setShowCreateModal(false);
       setNewProject({ name: '', code: '', description: '' });
-      fetchProjects();
+      // Chuyển thẳng vào bảng Kanban của dự án vừa tạo
+      navigate(`/projects/${res.data.id}`);
     } catch (err) {
       setCreateError(err.response?.data?.message || 'Không thể tạo dự án.');
     }
@@ -94,7 +97,11 @@ export default function Dashboard() {
                 : 0;
 
               return (
-                <div key={proj.id} className="project-card">
+                <div 
+                  key={proj.id} 
+                  className="project-card clickable-card"
+                  onClick={() => navigate(`/projects/${proj.id}`)}
+                >
                   <div className="card-top">
                     <span className="badge-code">{proj.code}</span>
                     <span className={`badge-status status-${proj.status}`}>
