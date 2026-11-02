@@ -1,7 +1,9 @@
 using System.Text;
 using EnterpriseProjectManagement.Application;
 using EnterpriseProjectManagement.Infrastructure;
+using EnterpriseProjectManagement.Infrastructure.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -55,6 +57,13 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+// Tự động kiểm tra và tạo Database/Tables nếu chưa có (Auto-Migrate khi khởi động)
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    dbContext.Database.EnsureCreated();
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
