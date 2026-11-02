@@ -1,4 +1,5 @@
 using EnterpriseProjectManagement.Application.Features.Auth.Services;
+using EnterpriseProjectManagement.Application.Features.MeetingNotes.Services;
 using EnterpriseProjectManagement.Application.Features.Projects.Services;
 using EnterpriseProjectManagement.Application.Features.Tasks.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,6 +13,7 @@ public static class DependencyInjection
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IProjectService, ProjectService>();
         services.AddScoped<ITaskService, TaskService>();
+        services.AddScoped<IMeetingNoteService, MeetingNoteService>();
         return services;
     }
 }

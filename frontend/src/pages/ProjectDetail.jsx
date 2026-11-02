@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import api from '../services/api';
 import { 
   ArrowLeft, Plus, Clock, AlertCircle, 
-  MessageSquare, UserPlus, Users, BarChart3, Columns, X 
+  MessageSquare, UserPlus, Users, BarChart3, Columns, FileText, Calendar, Trash2, X 
 } from 'lucide-react';
 
 const COLUMNS = [
@@ -16,10 +16,11 @@ const COLUMNS = [
 export default function ProjectDetail() {
   const { id } = useParams();
 
-  const [activeTab, setActiveTab] = useState('kanban'); // 'kanban' | 'analytics'
+  const [activeTab, setActiveTab] = useState('kanban'); // 'kanban' | 'analytics' | 'notes'
   const [project, setProject] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [analytics, setAnalytics] = useState(null);
+  const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Modal tạo công việc
@@ -38,6 +39,16 @@ export default function ProjectDetail() {
   const [memberRole, setMemberRole] = useState(3); // 3 = Member
   const [memberError, setMemberError] = useState('');
 
+  // Modal tạo biên bản cuộc họp
+  const [showNoteModal, setShowNoteModal] = useState(false);
+  const [newNote, setNewNote] = useState({
+    title: '',
+    meetingDate: new Date().toISOString().substring(0, 10),
+    attendees: '',
+    content: '',
+    actionItems: ''
+  });
+
   // Modal chi tiết & bình luận task
   const [selectedTask, setSelectedTask] = useState(null);
   const [commentText, setCommentText] = useState('');
@@ -45,14 +56,16 @@ export default function ProjectDetail() {
   const fetchProjectData = async () => {
     try {
       setLoading(true);
-      const [projRes, tasksRes, analyticsRes] = await Promise.all([
+      const [projRes, tasksRes, analyticsRes, notesRes] = await Promise.all([
         api.get(`/projects/${id}`),
         api.get(`/tasks/project/${id}`),
-        api.get(`/projects/${id}/analytics`)
+        api.get(`/projects/${id}/analytics`),
+        api.get(`/meetingnotes/project/${id}`)
       ]);
       setProject(projRes.data);
       setTasks(tasksRes.data);
       setAnalytics(analyticsRes.data);
+      setNotes(notesRes.data);
     } catch (err) {
       console.error('Lỗi tải dữ liệu dự án:', err);
     } finally {
@@ -100,7 +113,6 @@ export default function ProjectDetail() {
       });
 
       setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
-      // Tải lại analytics ngầm
       api.get(`/projects/${id}/analytics`).then(res => setAnalytics(res.data));
     } catch (err) {
       console.error('Lỗi cập nhật trạng thái:', err);
@@ -117,6 +129,42 @@ export default function ProjectDetail() {
       fetchProjectData();
     } catch (err) {
       setMemberError(err.response?.data?.message || 'Không thể thêm thành viên.');
+    }
+  };
+
+  const handleCreateNote = async (e) => {
+    e.preventDefault();
+    try {
+      await api.post('/meetingnotes', {
+        projectId: id,
+        title: newNote.title,
+        meetingDate: new Date(newNote.meetingDate).toISOString(),
+        attendees: newNote.attendees,
+        content: newNote.content,
+        actionItems: newNote.actionItems
+      });
+      setShowNoteModal(false);
+      setNewNote({
+        title: '',
+        meetingDate: new Date().toISOString().substring(0, 10),
+        attendees: '',
+        content: '',
+        actionItems: ''
+      });
+      const notesRes = await api.get(`/meetingnotes/project/${id}`);
+      setNotes(notesRes.data);
+    } catch (err) {
+      alert('Không thể lưu biên bản: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleDeleteNote = async (noteId) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa biên bản cuộc họp này?')) return;
+    try {
+      await api.delete(`/meetingnotes/${noteId}`);
+      setNotes(prev => prev.filter(n => n.id !== noteId));
+    } catch (err) {
+      alert('Không thể xóa biên bản.');
     }
   };
 
@@ -185,7 +233,7 @@ export default function ProjectDetail() {
         </div>
       </div>
 
-      {/* Tabs Switcher: Kanban vs Analytics */}
+      {/* Tabs Switcher: Kanban vs Analytics vs Meeting Notes */}
       <div className="tabs-bar">
         <button 
           className={`tab-btn ${activeTab === 'kanban' ? 'active' : ''}`}
@@ -193,6 +241,13 @@ export default function ProjectDetail() {
         >
           <Columns size={18} />
           <span>Bảng Kanban</span>
+        </button>
+        <button 
+          className={`tab-btn ${activeTab === 'notes' ? 'active' : ''}`}
+          onClick={() => setActiveTab('notes')}
+        >
+          <FileText size={18} />
+          <span>Biên Bản Cuộc Họp ({notes.length})</span>
         </button>
         <button 
           className={`tab-btn ${activeTab === 'analytics' ? 'active' : ''}`}
@@ -263,10 +318,63 @@ export default function ProjectDetail() {
         </div>
       )}
 
-      {/* Tab 2: Analytics & Workload Distribution */}
+      {/* Tab 2: Meeting Notes (Kế thừa MeetingNoteController từ Talgent) */}
+      {activeTab === 'notes' && (
+        <div className="notes-layout">
+          <div className="notes-header">
+            <div>
+              <h3>Nhật Ký & Biên Bản Cuộc Họp Dự Án</h3>
+              <p>Lưu vết các quyết định quan trọng và phân công hành động (Action Items)</p>
+            </div>
+            <button onClick={() => setShowNoteModal(true)} className="btn-primary">
+              <Plus size={18} />
+              <span>Ghi Biên Bản Mới</span>
+            </button>
+          </div>
+
+          {notes.length === 0 ? (
+            <div className="empty-state">
+              <FileText size={48} className="empty-icon" />
+              <h3>Chưa có biên bản cuộc họp nào</h3>
+              <p>Lưu lại nội dung cuộc họp để cả nhóm cùng theo dõi</p>
+              <button onClick={() => setShowNoteModal(true)} className="btn-primary">
+                <Plus size={18} />
+                <span>Tạo Biên Bản Đầu Tiên</span>
+              </button>
+            </div>
+          ) : (
+            <div className="notes-grid">
+              {notes.map(note => (
+                <div key={note.id} className="note-card">
+                  <div className="note-card-header">
+                    <h4>{note.title}</h4>
+                    <button onClick={() => handleDeleteNote(note.id)} className="btn-delete" title="Xóa">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                  <div className="note-meta">
+                    <span><Calendar size={14} /> {new Date(note.meetingDate).toLocaleDateString('vi-VN')}</span>
+                    {note.attendees && <span><Users size={14} /> {note.attendees}</span>}
+                  </div>
+                  <div className="note-content">
+                    <p>{note.content}</p>
+                  </div>
+                  {note.actionItems && (
+                    <div className="note-action-items">
+                      <strong>Hạng mục hành động:</strong>
+                      <p>{note.actionItems}</p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab 3: Analytics & Workload Distribution */}
       {activeTab === 'analytics' && analytics && (
         <div className="analytics-layout">
-          {/* Summary Stat Cards */}
           <div className="stats-cards-grid">
             <div className="stat-card">
               <span className="stat-label">Tổng số công việc</span>
@@ -286,7 +394,6 @@ export default function ProjectDetail() {
             </div>
           </div>
 
-          {/* Member Workload Allocation Table */}
           <div className="analytics-card">
             <h3><Users size={20} /> Thống Kê Phân Bổ Công Việc Theo Thành Viên (Workload Allocation)</h3>
             <p className="section-desc">Kế thừa chuẩn thuật toán thống kê AllocateTaskStatistic từ dự án Talgent</p>
@@ -430,6 +537,76 @@ export default function ProjectDetail() {
         </div>
       )}
 
+      {/* Modal Ghi Biên Bản Cuộc Họp */}
+      {showNoteModal && (
+        <div className="modal-backdrop">
+          <div className="modal-card">
+            <h2>Ghi Biên Bản Cuộc Họp</h2>
+            <p>Lưu lại nội dung trao đổi, kết luận và phân công sau buổi họp</p>
+
+            <form onSubmit={handleCreateNote}>
+              <div className="form-group">
+                <label>Chủ đề cuộc họp *</label>
+                <input 
+                  type="text" 
+                  required 
+                  placeholder="Ví dụ: Họp Sprint Review tuần 42"
+                  value={newNote.title}
+                  onChange={(e) => setNewNote({ ...newNote, title: e.target.value })}
+                />
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Ngày họp</label>
+                  <input 
+                    type="date" 
+                    required
+                    value={newNote.meetingDate}
+                    onChange={(e) => setNewNote({ ...newNote, meetingDate: e.target.value })}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Người tham dự</label>
+                  <input 
+                    type="text" 
+                    placeholder="Tiến, Minh, Hương..."
+                    value={newNote.attendees}
+                    onChange={(e) => setNewNote({ ...newNote, attendees: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label>Nội dung thảo luận & Quyết định *</label>
+                <textarea 
+                  rows={4} 
+                  required
+                  placeholder="Tóm tắt các vấn đề đã bàn bạc và thống nhất..."
+                  value={newNote.content}
+                  onChange={(e) => setNewNote({ ...newNote, content: e.target.value })}
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Hạng mục hành động (Action Items)</label>
+                <textarea 
+                  rows={2} 
+                  placeholder="Ai làm gì, deadline khi nào..."
+                  value={newNote.actionItems}
+                  onChange={(e) => setNewNote({ ...newNote, actionItems: e.target.value })}
+                />
+              </div>
+
+              <div className="modal-actions">
+                <button type="button" onClick={() => setShowNoteModal(false)} className="btn-secondary">Hủy</button>
+                <button type="submit" className="btn-primary">Lưu Biên Bản</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Modal Chi tiết Task & Thảo luận */}
       {selectedTask && (
         <div className="modal-backdrop">
@@ -446,7 +623,6 @@ export default function ProjectDetail() {
 
             <p className="detail-desc">{selectedTask.description || 'Chưa có mô tả chi tiết.'}</p>
 
-            {/* Comment Section */}
             <div className="comments-section">
               <h3><MessageSquare size={16} /> Thảo Luận & Ghi Chú ({selectedTask.comments?.length || 0})</h3>
               

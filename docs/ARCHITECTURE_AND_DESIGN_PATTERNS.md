@@ -258,3 +258,23 @@ Kế thừa trực tiếp từ bài toán thực tế `allocate-task-statistic` 
   - `Project Manager`: Quản lý toàn quyền dự án.
   - `Member`: Thành viên thực thi công việc.
   - `Viewer`: Khách hàng hoặc đối tác theo dõi tiến độ.
+
+
+---
+
+## 12. Phân Hệ Biên Bản Cuộc Họp & Phân Công Hành Động (Meeting Notes & Action Items)
+
+Kế thừa trực tiếp từ `MeetingNoteController.cs` trong codebase Talgent:
+
+### 1. Ý nghĩa Nghiệp vụ
+- Trong môi trường doanh nghiệp, các buổi họp giao ban / Sprint Review / Daily Standup đều cần lưu lại biên bản:
+  - **Chủ đề cuộc họp (`Title`)**: Xác định mục tiêu buổi họp.
+  - **Ngày họp (`MeetingDate`) & Người tham dự (`Attendees`)**: Truy vết thành phần tham gia.
+  - **Nội dung thảo luận & Quyết định (`Content`)**: Tóm tắt kết quả thống nhất.
+  - **Hạng mục hành động (`ActionItems`)**: Giao việc cụ thể (Ai làm gì, trước deadline nào) để sau đó chuyển thành các Tasks trên bảng Kanban.
+
+### 2. Thiết kế Kiến trúc
+- Entity `MeetingNote.cs` kế thừa `BaseEntity` (có Soft Delete tự động).
+- `MeetingNoteService.cs` cung cấp CRUD độc lập qua `IMeetingNoteService`.
+- `MeetingNotesController.cs` bảo vệ toàn diện với `[Authorize]`.
+- Frontend tích hợp thành một Tab độc lập `Biên Bản Cuộc Họp` trên màn hình dự án.
