@@ -14,7 +14,7 @@
 5. [Các Design Patterns Cốt Lõi Được Áp Dụng](#5-các-design-patterns-cốt-lõi-được-áp-dụng)
 6. [.NET Core Backend – Bản Chất Kỹ Thuật Trong 5 Phút](#6-net-core-backend--bản-chất-kỹ-thuật-trong-5-phút)
 7. [ReactJS Frontend – Bản Chất Kỹ Thuật Trong 5 Phút](#7-reactjs-frontend--bản-chất-kỹ-thuật-trong-5-phút)
-8. [Bộ 10 Câu Hỏi Vấn Đáp Hội Đồng Hay Hỏi Nhất & Câu Trả Lời Mẫu](#8-bộ-10-câu-hỏi-vấn-đáp-hội-đồng-hay-hỏi-nhất--câu-trả-lời-mẫu)
+8. [Bộ 12 Câu Hỏi Vấn Đáp Hội Đồng Hay Hỏi Nhất & Câu Trả Lời Mẫu](#8-bộ-12-câu-hỏi-vấn-đáp-hội-đồng-hay-hỏi-nhất--câu-trả-lời-mẫu)
 
 ---
 
@@ -40,7 +40,7 @@ Nếu giám khảo chỉ vào một dòng code lạ hoặc hỏi dồn chi tiế
 Tuyệt đối **không click chuột lung tung**. Hãy dẫn dắt người nghe theo đúng một hành trình nghiệp vụ (User Journey):
 
 ```text
-[ Đăng nhập ] ──► [ Dashboard ] ──► [ Dự án & Kanban ] ──► [ Họp & Action Items ] ──► [ Báo cáo Sức khỏe ] ──► [ My Tasks ]
+[ Đăng nhập ] ──► [ Dashboard ] ──► [ Dự án & Kanban ] ──► [ Họp & Action Items ] ──► [ Báo cáo Sức khỏe ] ──► [ Trợ lý AI ] ──► [ My Tasks ]
 ```
 
 ### Bước 1: Giới thiệu bài toán & Đăng nhập (1 phút)
@@ -64,7 +64,13 @@ Tuyệt đối **không click chuột lung tung**. Hãy dẫn dắt người ngh
 ### Bước 5: Báo cáo sức khỏe dự án (Status Reports) (1 phút)
 - Mở Tab **Báo cáo tiến độ**: Show các đánh giá sức khỏe (`On Track`, `At Risk`, `Delayed`), thành tựu đạt được và rủi ro/trở ngại.
 
-### Bước 6: Không gian cá nhân (My Tasks) (0.5 phút)
+### Bước 6: Trợ lý AI gợi ý (1 phút)
+- Trong Tab **Báo cáo sức khỏe**, bấm **Phân tích dự án**: AI đọc số liệu thật (tiến độ, việc quá hạn, điểm R/A/G) rồi nhận xét ngắn gồm đánh giá chung, rủi ro chính và việc nên làm ngay.
+- Mở chi tiết một công việc, bấm **Gợi ý việc con bằng AI** rồi bấm **Thêm** ở những việc con phù hợp.
+- Bấm **Gợi ý người nhận việc**: hệ thống xếp hạng thành viên theo khối lượng việc đang mở. Phần này là thuật toán cân bằng tải, không phụ thuộc AI.
+- Lời thoại gợi ý: *"AI chỉ là lớp hỗ trợ ra quyết định, số liệu nền vẫn do hệ thống tính toán."*
+
+### Bước 7: Không gian cá nhân (My Tasks) (0.5 phút)
 - Mở trang **My Tasks**: Thể hiện góc nhìn của một thành viên thực thi, gom toàn bộ task từ nhiều dự án khác nhau, có cờ cảnh báo đỏ khi bị **Quá hạn (Overdue)**.
 
 ---
@@ -91,9 +97,9 @@ Tuyệt đối **không click chuột lung tung**. Hãy dẫn dắt người ngh
 | Tầng | Thư mục trong dự án | Trách nhiệm cốt lõi | Các tệp tiêu biểu |
 | :--- | :--- | :--- | :--- |
 | **Domain** | `backend/.../Domain/` | Là "Hiến pháp" của hệ thống. Chứa các thực thể cốt lõi, không chứa bất kỳ logic cơ sở dữ liệu hay thư viện ngoài nào. | `BaseEntity.cs`<br>`User.cs`<br>`Project.cs`<br>`ProjectTask.cs`<br>`ProjectStatusReport.cs` |
-| **Application** | `backend/.../Application/` | Là "Bộ não điều phối nghiệp vụ". Định nghĩa Interface (`IRepository`, `IUnitOfWork`), tạo DTOs, thực thi các tính toán logic và kiểm tra quyền. | `IRepository.cs`<br>`IUnitOfWork.cs`<br>`TaskService.cs`<br>`StatusReportService.cs` |
-| **Infrastructure** | `backend/.../Infrastructure/` | Là "Công nhân kỹ thuật". Cài đặt EF Core, kết nối SQL Server, cấu hình Soft Delete, Fluent API. Triển khai các Interface của tầng Application. | `ApplicationDbContext.cs`<br>`Repository.cs`<br>`UnitOfWork.cs` |
-| **Api** | `backend/.../Api/` | Là "Nhân viên tiếp tân". Nhận HTTP request từ ReactJS, xác thực JWT qua `[Authorize]`, gọi tầng Application xử lý và trả về JSON. | `Program.cs`<br>`ProjectsController.cs`<br>`TasksController.cs`<br>`StatusReportsController.cs` |
+| **Application** | `backend/.../Application/` | Là "Bộ não điều phối nghiệp vụ". Định nghĩa Interface (`IRepository`, `IUnitOfWork`), tạo DTOs, thực thi các tính toán logic và kiểm tra quyền. | `IRepository.cs`<br>`IUnitOfWork.cs`<br>`IAiTextGenerator.cs`<br>`TaskService.cs`<br>`StatusReportService.cs`<br>`AiAssistantService.cs` |
+| **Infrastructure** | `backend/.../Infrastructure/` | Là "Công nhân kỹ thuật". Cài đặt EF Core, kết nối SQL Server, cấu hình Soft Delete, Fluent API. Triển khai các Interface của tầng Application. | `ApplicationDbContext.cs`<br>`Repository.cs`<br>`UnitOfWork.cs`<br>`GeminiTextGenerator.cs` |
+| **Api** | `backend/.../Api/` | Là "Nhân viên tiếp tân". Nhận HTTP request từ ReactJS, xác thực JWT qua `[Authorize]`, gọi tầng Application xử lý và trả về JSON. | `Program.cs`<br>`ProjectsController.cs`<br>`TasksController.cs`<br>`StatusReportsController.cs`<br>`AiAssistantController.cs` |
 
 > **Nguyên tắc vàng Clean Architecture:** Mũi tên phụ thuộc chỉ đi từ ngoài vào trong. Tầng `Domain` và `Application` hoàn toàn không phụ thuộc vào SQL Server hay EF Core. Khi muốn đổi DB sang PostgreSQL hoặc viết Unit Test Mock, ta không cần sửa một dòng code nghiệp vụ nào.
 
@@ -233,7 +239,7 @@ const [projRes, tasksRes, analyticsRes, notesRes, healthRes] = await Promise.all
 
 ---
 
-# 8. BỘ 10 CÂU HỎI VẤN ĐÁP HỘI ĐỒNG HAY HỎI NHẤT & CÂU TRẢ LỜI MẪU
+# 8. BỘ 12 CÂU HỎI VẤN ĐÁP HỘI ĐỒNG HAY HỎI NHẤT & CÂU TRẢ LỜI MẪU
 
 ### Câu 1: Em hãy giải thích cơ chế xác thực JWT trong dự án?
 > **Trả lời:** *"Dạ thưa thầy/cô, hệ thống sử dụng cơ chế xác thực phi trạng thái (Stateless). Khi người dùng đăng nhập đúng, backend băm mật khẩu bằng BCrypt để kiểm tra. Nếu hợp lệ, hệ thống tạo chuỗi JWT chứa các Claims (UserId, Email) và ký bằng khóa bí mật bí mật (Secret Key). Client lưu Token vào `localStorage` và đính kèm vào Header của mỗi request qua Axios Interceptor. Backend dùng middleware `[Authorize]` giải mã Token để nhận diện người dùng mà không cần truy vấn lại bảng User."*
@@ -272,6 +278,12 @@ const [projRes, tasksRes, analyticsRes, notesRes, healthRes] = await Promise.all
 > **Trả lời:** *"Dạ, đây là chỉ số phân bổ tải công việc của từng thành viên:
 > $$\text{Tỷ lệ phân bổ} = \frac{\text{Số task gán cho thành viên}}{\text{Tổng số task của dự án}} \times 100\%$$
 > Chỉ số này giúp Trưởng dự án (PM) quan sát trực quan xem thành viên nào đang bị gánh quá nhiều việc (overload) hoặc ai đang rảnh rỗi để điều chuyển công việc kịp thời, đảm bảo dự án về đích đúng hạn."*
+
+### Câu 11: Phần AI trong hệ thống hoạt động thế nào? Làm sao đảm bảo AI không bịa số liệu?
+> **Trả lời:** *"Dạ, em không để AI tự đoán. `AiAssistantService` ở tầng Application tự truy vấn dữ liệu thật của dự án (tổng việc, việc quá hạn, điểm sức khỏe R/A/G do `StatusReportService` tính), ghép thành prompt có cấu trúc rồi mới gửi cho Gemini, kèm chỉ dẫn chỉ được dựa trên dữ liệu cung cấp. Số liệu nền vẫn do hệ thống tính, AI chỉ diễn giải và đề xuất. Riêng gợi ý người nhận việc là thuật toán cân bằng tải thuần, xếp hạng theo số việc đang mở và tổng giờ ước lượng, không gọi AI."*
+
+### Câu 12: Nếu muốn đổi sang nhà cung cấp AI khác, hoặc khi dịch vụ AI bị lỗi thì sao?
+> **Trả lời:** *"Dạ, đây là ứng dụng của Dependency Inversion. Tầng Application chỉ biết interface `IAiTextGenerator`, còn `GeminiTextGenerator` ở tầng Infrastructure là bản cài đặt cụ thể. Muốn đổi nhà cung cấp, em viết thêm một lớp cài `IAiTextGenerator` rồi đổi một dòng đăng ký DI, không sửa nghiệp vụ. Khi AI lỗi hoặc chưa cấu hình khóa, lớp này ném `AiUnavailableException`, Controller trả về mã `503` kèm thông báo rõ ràng; các chức năng còn lại của hệ thống vẫn chạy bình thường. Khóa API không nằm trong mã nguồn mà đọc từ biến môi trường hoặc file cấu hình cục bộ."*
 
 ---
 

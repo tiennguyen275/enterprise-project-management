@@ -107,6 +107,13 @@ export default function ProjectDetail() {
   const [taskSaveMsg, setTaskSaveMsg] = useState('');
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [commentText, setCommentText] = useState('');
+  const [aiInsight, setAiInsight] = useState(null);
+  const [aiInsightLoading, setAiInsightLoading] = useState(false);
+  const [aiInsightError, setAiInsightError] = useState('');
+  const [subtaskSuggestions, setSubtaskSuggestions] = useState([]);
+  const [suggestionLoading, setSuggestionLoading] = useState(false);
+  const [suggestionError, setSuggestionError] = useState('');
+  const [assigneeSuggestions, setAssigneeSuggestions] = useState([]);
 
   const fetchProjectData = async () => {
     try {
@@ -385,6 +392,9 @@ export default function ProjectDetail() {
     try {
       setTaskSaveMsg('');
       setNewSubtaskTitle('');
+      setSubtaskSuggestions([]);
+      setSuggestionError('');
+      setAssigneeSuggestions([]);
       const res = await api.get(`/tasks/${taskId}`);
       setSelectedTask(res.data);
       syncTaskEditForm(res.data);
@@ -429,26 +439,79 @@ export default function ProjectDetail() {
     }
   };
 
+  const createSubtask = async (title) => {
+    await api.post('/tasks', {
+      projectId: id,
+      title,
+      description: null,
+      priority: 2,
+      dueDate: null,
+      estimatedHours: null,
+      assigneeId: selectedTask.assigneeId || null,
+      parentTaskId: selectedTask.id
+    });
+    const refreshed = await api.get(`/tasks/${selectedTask.id}`);
+    setSelectedTask(refreshed.data);
+    setTasks(prev => prev.map(t => t.id === selectedTask.id ? refreshed.data : t));
+  };
+
   const handleAddSubtask = async (e) => {
     e.preventDefault();
     if (!newSubtaskTitle.trim() || !selectedTask) return;
     try {
-      await api.post('/tasks', {
-        projectId: id,
-        title: newSubtaskTitle.trim(),
-        description: null,
-        priority: 2,
-        dueDate: null,
-        estimatedHours: null,
-        assigneeId: selectedTask.assigneeId || null,
-        parentTaskId: selectedTask.id
-      });
+      await createSubtask(newSubtaskTitle.trim());
       setNewSubtaskTitle('');
-      const refreshed = await api.get(`/tasks/${selectedTask.id}`);
-      setSelectedTask(refreshed.data);
-      setTasks(prev => prev.map(t => t.id === selectedTask.id ? refreshed.data : t));
     } catch (err) {
       alert('Không thể thêm công việc con: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleRequestInsight = async () => {
+    setAiInsightLoading(true);
+    setAiInsightError('');
+    try {
+      const res = await api.post(`/ai/projects/${id}/insight`);
+      setAiInsight(res.data);
+    } catch (err) {
+      setAiInsightError(err.response?.data?.message || 'Không thể lấy nhận xét từ AI.');
+    } finally {
+      setAiInsightLoading(false);
+    }
+  };
+
+  const handleSuggestSubtasks = async () => {
+    if (!selectedTask) return;
+    setSuggestionLoading(true);
+    setSuggestionError('');
+    try {
+      const res = await api.post(`/ai/tasks/${selectedTask.id}/subtask-suggestions`);
+      setSubtaskSuggestions(res.data.suggestions);
+      if (res.data.suggestions.length === 0) {
+        setSuggestionError('AI không có đề xuất mới cho công việc này.');
+      }
+    } catch (err) {
+      setSuggestionError(err.response?.data?.message || 'Không thể lấy gợi ý từ AI.');
+    } finally {
+      setSuggestionLoading(false);
+    }
+  };
+
+  const handleAddSuggestedSubtask = async (title) => {
+    try {
+      await createSubtask(title);
+      setSubtaskSuggestions(prev => prev.filter(s => s !== title));
+    } catch (err) {
+      alert('Không thể thêm công việc con: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleSuggestAssignees = async () => {
+    if (!selectedTask) return;
+    try {
+      const res = await api.get(`/ai/tasks/${selectedTask.id}/assignee-suggestions`);
+      setAssigneeSuggestions(res.data);
+    } catch (err) {
+      alert('Không thể lấy gợi ý người thực hiện: ' + (err.response?.data?.message || err.message));
     }
   };
 
@@ -798,6 +861,30 @@ export default function ProjectDetail() {
                   <span>Lập Báo Cáo Kỳ Này</span>
                 </button>
               </div>
+            </div>
+
+            <div className="ai-insight-panel">
+              <div className="ai-insight-header">
+                <div>
+                  <h4>Nhận xét của trợ lý AI</h4>
+                  <p>Phân tích số liệu hiện tại của dự án và đề xuất việc nên làm ngay</p>
+                </div>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={handleRequestInsight}
+                  disabled={aiInsightLoading}
+                >
+                  {aiInsightLoading ? 'AI đang phân tích...' : aiInsight ? 'Phân tích lại' : 'Phân tích dự án'}
+                </button>
+              </div>
+              {aiInsightError && <p className="ai-error-text">{aiInsightError}</p>}
+              {aiInsight && (
+                <div className="ai-insight-body">
+                  <p>{aiInsight.insight}</p>
+                  <span>Tạo lúc {new Date(aiInsight.generatedAt).toLocaleTimeString('vi-VN')}</span>
+                </div>
+              )}
             </div>
 
             <div className="status-timeframe-bar">
@@ -1397,6 +1484,28 @@ export default function ProjectDetail() {
                         <option key={m.userId} value={m.userId}>{m.fullName}</option>
                       ))}
                     </select>
+                    <button type="button" className="btn-ai-inline" onClick={handleSuggestAssignees}>
+                      Gợi ý người nhận việc
+                    </button>
+                    {assigneeSuggestions.length > 0 && (
+                      <div className="ai-assignee-list">
+                        {assigneeSuggestions.map(s => (
+                          <button
+                            type="button"
+                            key={s.userId}
+                            className={`ai-assignee-chip ${s.isRecommended ? 'recommended' : ''}`}
+                            onClick={() => {
+                              setTaskSaveMsg('');
+                              setTaskEditForm({ ...taskEditForm, assigneeId: s.userId });
+                            }}
+                          >
+                            <strong>{s.fullName}</strong>
+                            <span>{s.openTasks} việc mở, {s.openEstimatedHours}h</span>
+                            {s.isRecommended && <em>Ít việc nhất</em>}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div className="meta-field">
@@ -1542,6 +1651,30 @@ export default function ProjectDetail() {
                         />
                         <button type="submit" className="btn-secondary">+ Thêm việc con</button>
                       </form>
+
+                      <div className="ai-subtask-box">
+                        <button
+                          type="button"
+                          className="btn-ai-inline"
+                          onClick={handleSuggestSubtasks}
+                          disabled={suggestionLoading}
+                        >
+                          {suggestionLoading ? 'AI đang phân tích...' : 'Gợi ý việc con bằng AI'}
+                        </button>
+                        {suggestionError && <p className="ai-error-text">{suggestionError}</p>}
+                        {subtaskSuggestions.length > 0 && (
+                          <ul className="ai-suggestion-list">
+                            {subtaskSuggestions.map(s => (
+                              <li key={s}>
+                                <span>{s}</span>
+                                <button type="button" className="btn-secondary" onClick={() => handleAddSuggestedSubtask(s)}>
+                                  Thêm
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
                     </>
                   );
                 })()}

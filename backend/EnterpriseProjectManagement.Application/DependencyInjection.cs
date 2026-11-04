@@ -1,3 +1,4 @@
+using EnterpriseProjectManagement.Application.Features.AiAssistant.Services;
 using EnterpriseProjectManagement.Application.Features.Auth.Services;
 using EnterpriseProjectManagement.Application.Features.MeetingNotes.Services;
 using EnterpriseProjectManagement.Application.Features.Projects.Services;
@@ -16,6 +17,7 @@ public static class DependencyInjection
         services.AddScoped<ITaskService, TaskService>();
         services.AddScoped<IMeetingNoteService, MeetingNoteService>();
         services.AddScoped<IStatusReportService, StatusReportService>();
+        services.AddScoped<IAiAssistantService, AiAssistantService>();
         return services;
     }
 }
