@@ -341,7 +341,7 @@ export default function ProjectDetail() {
                       colTasks.map(task => (
                         <div 
                           key={task.id} 
-                          className={`kanban-task-card ${draggedTaskId === task.id ? 'is-dragging' : ''}`}
+                          className={`kanban-task-card priority-border-${task.priority} ${draggedTaskId === task.id ? 'is-dragging' : ''}`}
                           draggable
                           onDragStart={(e) => handleDragStart(e, task.id)}
                           onClick={() => handleOpenTaskDetail(task.id)}

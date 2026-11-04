@@ -1,24 +1,24 @@
 // ==========================================
-// 1. DESIGN TOKENS & VARIABLES
+// 1. DESIGN TOKENS & VARIABLES (IMPECCABLE UI)
 // ==========================================
 
-// Brand Colors
+// Brand Colors (Enterprise Royal Blue)
 $primary: #2563eb;
 $primary-hover: #1d4ed8;
 $primary-light: #eff6ff;
 $primary-border: #bfdbfe;
 
-// Neutral Colors (Enterprise Slate)
+// Neutral Colors (High-Contrast Slate)
 $bg-body: #f8fafc;
 $bg-surface: #ffffff;
 $bg-muted: #f1f5f9;
 $bg-subtle: #f8fafc;
 
-$text-title: #0f172a;      // Dark high-contrast for all h1, h2, h3, titles
+$text-title: #0f172a;      // WCAG AAA Dark Slate for all headings & KPIs
 $text-body: #334155;       // Crisp readable body text
 $text-secondary: #475569;  // Secondary descriptions
-$text-muted: #64748b;      // Muted placeholders, timestamps
-$text-light: #94a3b8;      // De-emphasized hints
+$text-muted: #64748b;      // Muted labels, timestamps
+$text-light: #94a3b8;      // Placeholders & hints
 
 // Border & Divider
 $border-light: #f1f5f9;
@@ -47,7 +47,7 @@ $info-bg: #f0f9ff;
 $info-border: #bae6fd;
 $info-text: #0369a1;
 
-// Task Columns & Priority
+// Task Columns & Priority Accents
 $col-todo: #64748b;
 $col-in-progress: #2563eb;
 $col-review: #d97706;
@@ -61,17 +61,18 @@ $radius-lg: 0.75rem;
 $radius-xl: 1rem;
 $radius-full: 9999px;
 
-// Elevation Shadows
-$shadow-xs: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
-$shadow-sm: 0 1px 3px 0 rgba(15, 23, 42, 0.08), 0 1px 2px -1px rgba(15, 23, 42, 0.04);
-$shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.07), 0 2px 4px -2px rgba(15, 23, 42, 0.05);
-$shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -4px rgba(15, 23, 42, 0.04);
-$shadow-modal: 0 20px 25px -5px rgba(15, 23, 42, 0.15), 0 8px 10px -6px rgba(15, 23, 42, 0.1);
+// Multi-layered Elevation Shadows (Impeccable Polish)
+$shadow-xs: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
+$shadow-sm: 0 1px 3px 0 rgba(15, 23, 42, 0.06), 0 1px 2px -1px rgba(15, 23, 42, 0.04);
+$shadow-md: 0 10px 15px -3px rgba(15, 23, 42, 0.07), 0 4px 6px -4px rgba(15, 23, 42, 0.04);
+$shadow-lg: 0 20px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
+$shadow-modal: 0 25px 50px -12px rgba(15, 23, 42, 0.22);
 
 // Typography
-$font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+$font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 $font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
-// Transitions
-$transition-fast: all 0.15s ease-in-out;
-$transition-base: all 0.2s ease-in-out;
+// Tactile Motion Curves (Impeccable Animate)
+$ease-out-expo: cubic-bezier(0.22, 1, 0.36, 1);
+$transition-fast: all 0.18s $ease-out-expo;
+$transition-base: all 0.25s $ease-out-expo;

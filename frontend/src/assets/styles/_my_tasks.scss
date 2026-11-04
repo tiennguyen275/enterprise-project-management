@@ -212,6 +212,7 @@
       .my-task-row {
         background: #ffffff;
         border: 1px solid $border-color;
+        border-left: 4px solid #2563eb;
         border-radius: $radius-lg;
         padding: 1.25rem 1.5rem;
         box-shadow: $shadow-xs;
@@ -219,16 +220,23 @@
         justify-content: space-between;
         align-items: center;
         gap: 1.5rem;
-        transition: $transition-fast;
+        transition: $transition-base;
+
+        &.priority-border-1 { border-left-color: #94a3b8; }
+        &.priority-border-2 { border-left-color: #2563eb; }
+        &.priority-border-3 { border-left-color: #ea580c; }
+        &.priority-border-4 { border-left-color: #dc2626; }
 
         &:hover {
-          border-color: $primary-border;
+          border-top-color: $primary-border;
+          border-right-color: $primary-border;
+          border-bottom-color: $primary-border;
           box-shadow: $shadow-md;
-          transform: translateY(-1px);
+          transform: translateY(-2px);
         }
 
         &.row-overdue {
-          border-left: 4px solid #ef4444;
+          border-left: 4px solid #ef4444 !important;
         }
 
         &.row-done {

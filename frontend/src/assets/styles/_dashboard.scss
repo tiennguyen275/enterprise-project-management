@@ -144,6 +144,7 @@
         background: #ffffff;
         border-radius: $radius-lg;
         border: 1px solid $border-color;
+        border-top: 3.5px solid $primary;
         box-shadow: $shadow-sm;
         padding: 1.5rem;
         display: flex;
@@ -156,7 +157,9 @@
         &:hover {
           transform: translateY(-3px);
           box-shadow: $shadow-md;
-          border-color: $primary-border;
+          border-left-color: $primary-border;
+          border-right-color: $primary-border;
+          border-bottom-color: $primary-border;
         }
 
         .card-header {
@@ -172,6 +175,10 @@
           color: #0f172a !important;
           margin-bottom: 0.5rem;
           line-height: 1.35;
+          display: -webkit-box;
+          -webkit-line-clamp: 1;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
         }
 
         .project-desc {
