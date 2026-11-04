@@ -44,7 +44,7 @@ public class ProjectService : IProjectService
         var projectIds = memberships.Select(m => m.ProjectId).ToHashSet();
 
         var projects = await _projectRepository.FindAsync(p => projectIds.Contains(p.Id), cancellationToken);
-        var tasks = await _taskRepository.FindAsync(t => projectIds.Contains(t.ProjectId), cancellationToken);
+        var tasks = await _taskRepository.FindAsync(t => projectIds.Contains(t.ProjectId) && t.ParentTaskId == null, cancellationToken);
 
         var result = new List<ProjectResponseDto>();
         foreach (var project in projects)
@@ -77,8 +77,11 @@ public class ProjectService : IProjectService
         if (project == null) return null;
 
         var members = await _memberRepository.FindAsync(m => m.ProjectId == projectId, cancellationToken);
-        var users = await _userRepository.GetAllAsync(cancellationToken);
-        var tasks = await _taskRepository.FindAsync(t => t.ProjectId == projectId, cancellationToken);
+        var memberUserIds = members.Select(m => m.UserId).Distinct().ToList();
+        var users = memberUserIds.Count > 0
+            ? await _userRepository.FindAsync(u => memberUserIds.Contains(u.Id), cancellationToken)
+            : Array.Empty<User>();
+        var tasks = await _taskRepository.FindAsync(t => t.ProjectId == projectId && t.ParentTaskId == null, cancellationToken);
 
         var memberDtos = (from m in members
                           join u in users on m.UserId equals u.Id
@@ -205,9 +208,12 @@ public class ProjectService : IProjectService
         var project = await _projectRepository.GetByIdAsync(projectId, cancellationToken);
         if (project == null) throw new KeyNotFoundException("Không tìm thấy dự án.");
 
-        var tasks = await _taskRepository.FindAsync(t => t.ProjectId == projectId, cancellationToken);
+        var tasks = await _taskRepository.FindAsync(t => t.ProjectId == projectId && t.ParentTaskId == null, cancellationToken);
         var members = await _memberRepository.FindAsync(m => m.ProjectId == projectId, cancellationToken);
-        var users = await _userRepository.GetAllAsync(cancellationToken);
+        var memberUserIds = members.Select(m => m.UserId).Distinct().ToList();
+        var users = memberUserIds.Count > 0
+            ? await _userRepository.FindAsync(u => memberUserIds.Contains(u.Id), cancellationToken)
+            : Array.Empty<User>();
 
         var totalTasks = tasks.Count;
         var todoTasks = tasks.Count(t => t.Status == ProjectTaskStatus.Todo);

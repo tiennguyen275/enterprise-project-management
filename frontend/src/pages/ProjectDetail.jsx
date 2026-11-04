@@ -89,7 +89,23 @@ export default function ProjectDetail() {
     };
   });
 
+  const [kanbanSearch, setKanbanSearch] = useState('');
+  const [kanbanAssignee, setKanbanAssignee] = useState('ALL');
+  const [kanbanPriority, setKanbanPriority] = useState('ALL');
+
   const [selectedTask, setSelectedTask] = useState(null);
+  const [taskEditForm, setTaskEditForm] = useState({
+    title: '',
+    description: '',
+    status: 1,
+    priority: 2,
+    dueDate: '',
+    estimatedHours: '',
+    actualHours: '',
+    assigneeId: ''
+  });
+  const [taskSaveMsg, setTaskSaveMsg] = useState('');
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [commentText, setCommentText] = useState('');
 
   const fetchProjectData = async () => {
@@ -352,12 +368,121 @@ export default function ProjectDetail() {
     }
   };
 
+  const syncTaskEditForm = (taskData) => {
+    setTaskEditForm({
+      title: taskData.title || '',
+      description: taskData.description || '',
+      status: taskData.status || 1,
+      priority: taskData.priority || 2,
+      dueDate: taskData.dueDate ? taskData.dueDate.substring(0, 10) : '',
+      estimatedHours: taskData.estimatedHours ?? '',
+      actualHours: taskData.actualHours ?? '',
+      assigneeId: taskData.assigneeId || ''
+    });
+  };
+
   const handleOpenTaskDetail = async (taskId) => {
     try {
+      setTaskSaveMsg('');
+      setNewSubtaskTitle('');
       const res = await api.get(`/tasks/${taskId}`);
       setSelectedTask(res.data);
+      syncTaskEditForm(res.data);
     } catch (err) {
       console.error('Lỗi tải chi tiết task:', err);
+    }
+  };
+
+  const handleSaveTaskDetail = async (e) => {
+    e.preventDefault();
+    if (!selectedTask) return;
+    try {
+      setTaskSaveMsg('');
+      const res = await api.put(`/tasks/${selectedTask.id}`, {
+        title: taskEditForm.title,
+        description: taskEditForm.description,
+        status: parseInt(taskEditForm.status),
+        priority: parseInt(taskEditForm.priority),
+        dueDate: taskEditForm.dueDate ? new Date(taskEditForm.dueDate).toISOString() : null,
+        estimatedHours: taskEditForm.estimatedHours !== '' ? parseFloat(taskEditForm.estimatedHours) : null,
+        actualHours: taskEditForm.actualHours !== '' ? parseFloat(taskEditForm.actualHours) : null,
+        assigneeId: taskEditForm.assigneeId || null
+      });
+      setSelectedTask(res.data);
+      syncTaskEditForm(res.data);
+      setTaskSaveMsg('Đã lưu cập nhật!');
+      fetchProjectData();
+    } catch (err) {
+      alert('Không thể cập nhật công việc: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleDeleteTask = async () => {
+    if (!selectedTask) return;
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa công việc "${selectedTask.taskCode}: ${selectedTask.title}"?`)) return;
+    try {
+      await api.delete(`/tasks/${selectedTask.id}`);
+      setSelectedTask(null);
+      fetchProjectData();
+    } catch (err) {
+      alert('Không thể xóa công việc: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleAddSubtask = async (e) => {
+    e.preventDefault();
+    if (!newSubtaskTitle.trim() || !selectedTask) return;
+    try {
+      await api.post('/tasks', {
+        projectId: id,
+        title: newSubtaskTitle.trim(),
+        description: null,
+        priority: 2,
+        dueDate: null,
+        estimatedHours: null,
+        assigneeId: selectedTask.assigneeId || null,
+        parentTaskId: selectedTask.id
+      });
+      setNewSubtaskTitle('');
+      const refreshed = await api.get(`/tasks/${selectedTask.id}`);
+      setSelectedTask(refreshed.data);
+      setTasks(prev => prev.map(t => t.id === selectedTask.id ? refreshed.data : t));
+    } catch (err) {
+      alert('Không thể thêm công việc con: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleToggleSubtask = async (subTask) => {
+    if (!selectedTask) return;
+    try {
+      const nextStatus = subTask.status === 4 ? 1 : 4;
+      await api.put(`/tasks/${subTask.id}`, {
+        title: subTask.title,
+        description: null,
+        status: nextStatus,
+        priority: 2,
+        dueDate: null,
+        estimatedHours: null,
+        actualHours: null,
+        assigneeId: null
+      });
+      const refreshed = await api.get(`/tasks/${selectedTask.id}`);
+      setSelectedTask(refreshed.data);
+      setTasks(prev => prev.map(t => t.id === selectedTask.id ? refreshed.data : t));
+    } catch (err) {
+      alert('Không thể cập nhật công việc con: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleDeleteSubtask = async (subTaskId) => {
+    if (!selectedTask) return;
+    try {
+      await api.delete(`/tasks/${subTaskId}`);
+      const refreshed = await api.get(`/tasks/${selectedTask.id}`);
+      setSelectedTask(refreshed.data);
+      setTasks(prev => prev.map(t => t.id === selectedTask.id ? refreshed.data : t));
+    } catch (err) {
+      alert('Không thể xóa công việc con: ' + (err.response?.data?.message || err.message));
     }
   };
 
@@ -366,10 +491,12 @@ export default function ProjectDetail() {
     if (!commentText.trim() || !selectedTask) return;
     try {
       const res = await api.post(`/tasks/${selectedTask.id}/comments`, { content: commentText });
+      const updatedComments = [...(selectedTask.comments || []), res.data];
       setSelectedTask(prev => ({
         ...prev,
-        comments: [...prev.comments, res.data]
+        comments: updatedComments
       }));
+      setTasks(prev => prev.map(t => t.id === selectedTask.id ? { ...t, comments: updatedComments } : t));
       setCommentText('');
     } catch (err) {
       console.error('Lỗi gửi bình luận:', err);
@@ -462,82 +589,182 @@ export default function ProjectDetail() {
         </div>
 
         {activeTab === 'kanban' && (
-          <div className="kanban-board">
-            {COLUMNS.map(col => {
-              const colTasks = tasks.filter(t => t.status === col.id);
-              const isOver = dragOverColId === col.id;
-
-              return (
-                <div 
-                  key={col.id} 
-                  className={`kanban-column ${isOver ? 'column-drag-over' : ''}`}
-                  onDragOver={(e) => handleDragOver(e, col.id)}
-                  onDragLeave={(e) => handleDragLeave(e, col.id)}
-                  onDrop={(e) => handleDrop(e, col.id)}
-                >
-                  <div className="column-header" style={{ borderTopColor: col.color }}>
-                    <h3>{col.title}</h3>
-                    <span className="count-badge">{colTasks.length}</span>
-                  </div>
-
-                  <div className="task-list">
-                    {colTasks.length === 0 ? (
-                      <div className="empty-column-placeholder">
-                        {isOver ? 'Thả công việc vào đây...' : 'Chưa có công việc'}
-                      </div>
-                    ) : (
-                      colTasks.map(task => (
-                        <div 
-                          key={task.id} 
-                          className={`kanban-task-card priority-border-${task.priority} ${draggedTaskId === task.id ? 'is-dragging' : ''}`}
-                          draggable
-                          onDragStart={(e) => handleDragStart(e, task.id)}
-                          onClick={() => handleOpenTaskDetail(task.id)}
-                        >
-                          <div className="task-card-top">
-                            <span className="task-code">{task.taskCode}</span>
-                            <span className={`priority-badge priority-${task.priority}`}>
-                              {task.priority === 4 ? 'Khẩn cấp' : task.priority === 3 ? 'Cao' : task.priority === 2 ? 'Trung bình' : 'Thấp'}
-                            </span>
-                          </div>
-
-                          <h4>{task.title}</h4>
-
-                          {task.dueDate && (
-                            <div className="task-meta-due">
-                              <AccessTimeIcon style={{ fontSize: 14 }} />
-                              <span>{new Date(task.dueDate).toLocaleDateString('vi-VN')}</span>
-                            </div>
-                          )}
-
-                          {task.assigneeName && (
-                            <div className="task-meta-due" style={{ color: '#2563eb', fontWeight: 600 }}>
-                              <PeopleAltOutlinedIcon style={{ fontSize: 14 }} />
-                              <span>{task.assigneeName}</span>
-                            </div>
-                          )}
-
-                          <div className="task-card-actions">
-                            <span className="drag-hint"><DragIndicatorIcon style={{ fontSize: 14 }} /> Kéo thả hoặc chọn</span>
-                            <select 
-                              value={task.status} 
-                              onClick={(e) => e.stopPropagation()}
-                              onChange={(e) => handleUpdateStatus(task.id, parseInt(e.target.value))}
-                              className="status-dropdown"
-                            >
-                              {COLUMNS.map(c => (
-                                <option key={c.id} value={c.id}>{c.title}</option>
-                              ))}
-                            </select>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
+          <>
+            <div className="kanban-toolbar">
+              <div className="toolbar-filters">
+                <div className="search-box">
+                  <input
+                    type="text"
+                    placeholder="Tìm theo mã (PRJ-1) hoặc tên công việc..."
+                    value={kanbanSearch}
+                    onChange={(e) => setKanbanSearch(e.target.value)}
+                  />
                 </div>
-              );
-            })}
-          </div>
+
+                <select
+                  className="filter-select"
+                  value={kanbanAssignee}
+                  onChange={(e) => setKanbanAssignee(e.target.value)}
+                >
+                  <option value="ALL">Tất cả người thực hiện</option>
+                  <option value="UNASSIGNED">Chưa chỉ định (Unassigned)</option>
+                  {project.members?.map(m => (
+                    <option key={m.userId} value={m.userId}>{m.fullName}</option>
+                  ))}
+                </select>
+
+                <select
+                  className="filter-select"
+                  value={kanbanPriority}
+                  onChange={(e) => setKanbanPriority(e.target.value)}
+                >
+                  <option value="ALL">Tất cả độ ưu tiên</option>
+                  <option value="4">Khẩn cấp</option>
+                  <option value="3">Cao</option>
+                  <option value="2">Trung bình</option>
+                  <option value="1">Thấp</option>
+                </select>
+
+                {(kanbanSearch || kanbanAssignee !== 'ALL' || kanbanPriority !== 'ALL') && (
+                  <button
+                    type="button"
+                    className="btn-reset-filter"
+                    onClick={() => {
+                      setKanbanSearch('');
+                      setKanbanAssignee('ALL');
+                      setKanbanPriority('ALL');
+                    }}
+                  >
+                    Đặt lại bộ lọc
+                  </button>
+                )}
+              </div>
+
+              <div className="toolbar-summary">
+                Tổng số: {tasks.length} công việc
+              </div>
+            </div>
+
+            <div className="kanban-board">
+              {COLUMNS.map(col => {
+                const colTasks = tasks.filter(t => {
+                  if (t.status !== col.id) return false;
+                  if (kanbanSearch.trim()) {
+                    const q = kanbanSearch.toLowerCase();
+                    const matchTitle = t.title?.toLowerCase().includes(q);
+                    const matchCode = t.taskCode?.toLowerCase().includes(q);
+                    if (!matchTitle && !matchCode) return false;
+                  }
+                  if (kanbanAssignee === 'UNASSIGNED' && t.assigneeId) return false;
+                  if (kanbanAssignee !== 'ALL' && kanbanAssignee !== 'UNASSIGNED' && t.assigneeId !== kanbanAssignee) return false;
+                  if (kanbanPriority !== 'ALL' && t.priority !== parseInt(kanbanPriority)) return false;
+                  return true;
+                });
+                const isOver = dragOverColId === col.id;
+
+                return (
+                  <div 
+                    key={col.id} 
+                    className={`kanban-column ${isOver ? 'column-drag-over' : ''}`}
+                    onDragOver={(e) => handleDragOver(e, col.id)}
+                    onDragLeave={(e) => handleDragLeave(e, col.id)}
+                    onDrop={(e) => handleDrop(e, col.id)}
+                  >
+                    <div className="column-header" style={{ borderTopColor: col.color }}>
+                      <h3>{col.title}</h3>
+                      <span className="count-badge">{colTasks.length}</span>
+                    </div>
+
+                    <div className="task-list">
+                      {colTasks.length === 0 ? (
+                        <div className="empty-column-placeholder">
+                          {isOver ? 'Thả công việc vào đây...' : 'Chưa có công việc'}
+                        </div>
+                      ) : (
+                        colTasks.map(task => {
+                          const totalSub = task.subTasks?.length || 0;
+                          const doneSub = task.subTasks?.filter(s => s.status === 4).length || 0;
+                          const commentCount = task.comments?.length || 0;
+                          const hasTime = task.estimatedHours != null || task.actualHours != null;
+                          const isOverTime = task.estimatedHours != null && task.actualHours != null && task.actualHours > task.estimatedHours;
+
+                          return (
+                            <div 
+                              key={task.id} 
+                              className={`kanban-task-card priority-border-${task.priority} ${draggedTaskId === task.id ? 'is-dragging' : ''}`}
+                              draggable
+                              onDragStart={(e) => handleDragStart(e, task.id)}
+                              onClick={() => handleOpenTaskDetail(task.id)}
+                            >
+                              <div className="task-card-top">
+                                <span className="task-code">{task.taskCode}</span>
+                                <span className={`priority-badge priority-${task.priority}`}>
+                                  {task.priority === 4 ? 'Khẩn cấp' : task.priority === 3 ? 'Cao' : task.priority === 2 ? 'Trung bình' : 'Thấp'}
+                                </span>
+                              </div>
+
+                              <h4>{task.title}</h4>
+
+                              {task.dueDate && (
+                                <div className="task-meta-due">
+                                  <AccessTimeIcon style={{ fontSize: 14 }} />
+                                  <span>{new Date(task.dueDate).toLocaleDateString('vi-VN')}</span>
+                                </div>
+                              )}
+
+                              {task.assigneeName && (
+                                <div className="task-meta-due" style={{ color: '#2563eb', fontWeight: 600 }}>
+                                  <PeopleAltOutlinedIcon style={{ fontSize: 14 }} />
+                                  <span>{task.assigneeName}</span>
+                                </div>
+                              )}
+
+                              {(totalSub > 0 || hasTime || commentCount > 0) && (
+                                <div className="task-card-badges">
+                                  {totalSub > 0 && (
+                                    <span className={`meta-pill ${doneSub === totalSub ? 'subtask-done' : ''}`}>
+                                      <CheckCircleOutlineIcon style={{ fontSize: 12 }} />
+                                      <span>{doneSub}/{totalSub} việc con</span>
+                                    </span>
+                                  )}
+                                  {hasTime && (
+                                    <span className={`meta-pill ${isOverTime ? 'time-over' : ''}`}>
+                                      <AccessTimeIcon style={{ fontSize: 12 }} />
+                                      <span>{task.actualHours ?? 0}h / {task.estimatedHours ?? 0}h</span>
+                                    </span>
+                                  )}
+                                  {commentCount > 0 && (
+                                    <span className="meta-pill">
+                                      <ChatBubbleOutlineOutlinedIcon style={{ fontSize: 12 }} />
+                                      <span>{commentCount}</span>
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+
+                              <div className="task-card-actions">
+                                <span className="drag-hint"><DragIndicatorIcon style={{ fontSize: 14 }} /> Kéo thả hoặc chọn</span>
+                                <select 
+                                  value={task.status} 
+                                  onClick={(e) => e.stopPropagation()}
+                                  onChange={(e) => handleUpdateStatus(task.id, parseInt(e.target.value))}
+                                  className="status-dropdown"
+                                >
+                                  {COLUMNS.map(c => (
+                                    <option key={c.id} value={c.id}>{c.title}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
 
         {activeTab === 'status-reports' && healthOverview && (
@@ -1014,6 +1241,18 @@ export default function ProjectDetail() {
                   </div>
                 </div>
 
+                <div className="form-group">
+                  <label>Số giờ ước lượng (Estimated Hours)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    placeholder="Ví dụ: 8"
+                    value={newTask.estimatedHours}
+                    onChange={(e) => setNewTask({ ...newTask, estimatedHours: e.target.value })}
+                  />
+                </div>
+
                 <div className="modal-actions">
                   <button type="button" onClick={() => setShowTaskModal(false)} className="btn-secondary">Hủy</button>
                   <button type="submit" className="btn-primary">Tạo Công Việc</button>
@@ -1100,12 +1339,213 @@ export default function ProjectDetail() {
                   <span className="task-code">{selectedTask.taskCode}</span>
                   <h2>{selectedTask.title}</h2>
                 </div>
-                <button onClick={() => setSelectedTask(null)} className="btn-close">
-                  <CloseIcon fontSize="small" />
-                </button>
+                <div className="detail-header-actions">
+                  <button type="button" onClick={handleDeleteTask} className="btn-delete-task">
+                    <DeleteOutlineOutlinedIcon style={{ fontSize: 16 }} />
+                    <span>Xóa công việc</span>
+                  </button>
+                  <button onClick={() => setSelectedTask(null)} className="btn-close">
+                    <CloseIcon fontSize="small" />
+                  </button>
+                </div>
               </div>
 
-              <p className="detail-desc">{selectedTask.description || 'Chưa có mô tả chi tiết.'}</p>
+              <form onSubmit={handleSaveTaskDetail} className="task-meta-editor">
+                <div className="meta-grid">
+                  <div className="meta-field">
+                    <label>Trạng thái</label>
+                    <select
+                      value={taskEditForm.status}
+                      onChange={(e) => {
+                        setTaskSaveMsg('');
+                        setTaskEditForm({ ...taskEditForm, status: parseInt(e.target.value) });
+                      }}
+                    >
+                      {COLUMNS.map(c => (
+                        <option key={c.id} value={c.id}>{c.title}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="meta-field">
+                    <label>Độ ưu tiên</label>
+                    <select
+                      value={taskEditForm.priority}
+                      onChange={(e) => {
+                        setTaskSaveMsg('');
+                        setTaskEditForm({ ...taskEditForm, priority: parseInt(e.target.value) });
+                      }}
+                    >
+                      <option value={1}>Thấp</option>
+                      <option value={2}>Trung bình</option>
+                      <option value={3}>Cao</option>
+                      <option value={4}>Khẩn cấp</option>
+                    </select>
+                  </div>
+
+                  <div className="meta-field">
+                    <label>Người thực hiện (Assignee)</label>
+                    <select
+                      value={taskEditForm.assigneeId}
+                      onChange={(e) => {
+                        setTaskSaveMsg('');
+                        setTaskEditForm({ ...taskEditForm, assigneeId: e.target.value });
+                      }}
+                    >
+                      <option value="">-- Chưa chỉ định --</option>
+                      {project.members?.map(m => (
+                        <option key={m.userId} value={m.userId}>{m.fullName}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="meta-field">
+                    <label>Hạn hoàn thành</label>
+                    <input
+                      type="date"
+                      value={taskEditForm.dueDate}
+                      onChange={(e) => {
+                        setTaskSaveMsg('');
+                        setTaskEditForm({ ...taskEditForm, dueDate: e.target.value });
+                      }}
+                    />
+                  </div>
+
+                  <div className="meta-field">
+                    <label>Giờ ước lượng (Estimated Hours)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      placeholder="0"
+                      value={taskEditForm.estimatedHours}
+                      onChange={(e) => {
+                        setTaskSaveMsg('');
+                        setTaskEditForm({ ...taskEditForm, estimatedHours: e.target.value });
+                      }}
+                    />
+                  </div>
+
+                  <div className="meta-field">
+                    <label>Giờ thực tế (Actual Hours)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      placeholder="0"
+                      value={taskEditForm.actualHours}
+                      onChange={(e) => {
+                        setTaskSaveMsg('');
+                        setTaskEditForm({ ...taskEditForm, actualHours: e.target.value });
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {(taskEditForm.estimatedHours !== '' || taskEditForm.actualHours !== '') && (() => {
+                  const est = parseFloat(taskEditForm.estimatedHours) || 0;
+                  const act = parseFloat(taskEditForm.actualHours) || 0;
+                  const isOver = est > 0 && act > est;
+                  const pct = est > 0 ? Math.min(Math.round((act / est) * 100), 100) : (act > 0 ? 100 : 0);
+
+                  return (
+                    <div className="time-tracking-bar-box">
+                      <div className="time-bar-header">
+                        <span>Theo dõi thời gian: Thực tế {act}h / Ước lượng {est}h</span>
+                        <span className={`time-status-tag ${isOver ? 'over-budget' : 'within-budget'}`}>
+                          {isOver ? `Vượt ước lượng (+${(act - est).toFixed(1)}h)` : 'Trong định mức'}
+                        </span>
+                      </div>
+                      <div className="time-bar-track">
+                        <div
+                          className={`time-bar-fill ${isOver ? 'over-budget' : 'within-budget'}`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                <div className="desc-editor">
+                  <label>Mô tả công việc</label>
+                  <textarea
+                    rows={3}
+                    placeholder="Nhập mô tả chi tiết yêu cầu công việc..."
+                    value={taskEditForm.description}
+                    onChange={(e) => {
+                      setTaskSaveMsg('');
+                      setTaskEditForm({ ...taskEditForm, description: e.target.value });
+                    }}
+                  />
+                </div>
+
+                <div className="meta-editor-footer">
+                  {taskSaveMsg && <span className="save-feedback">{taskSaveMsg}</span>}
+                  <button type="submit" className="btn-primary btn-save-task">
+                    Lưu Cập Nhật Công Việc
+                  </button>
+                </div>
+              </form>
+
+              <div className="subtasks-section">
+                {(() => {
+                  const subList = selectedTask.subTasks || [];
+                  const doneCount = subList.filter(s => s.status === 4).length;
+                  const subPct = subList.length > 0 ? Math.round((doneCount / subList.length) * 100) : 0;
+
+                  return (
+                    <>
+                      <div className="subtasks-header">
+                        <h3>
+                          <CheckCircleOutlineIcon fontSize="small" />
+                          <span>Công Việc Con (Subtasks / WBS) ({doneCount}/{subList.length})</span>
+                        </h3>
+                        <span className="subtask-progress-label">{subPct}% hoàn thành</span>
+                      </div>
+
+                      <div className="subtask-progress-track">
+                        <div className="subtask-progress-fill" style={{ width: `${subPct}%` }} />
+                      </div>
+
+                      {subList.length > 0 && (
+                        <div className="subtasks-list">
+                          {subList.map(sub => (
+                            <div key={sub.id} className={`subtask-item ${sub.status === 4 ? 'subtask-done' : ''}`}>
+                              <label className="subtask-left">
+                                <input
+                                  type="checkbox"
+                                  checked={sub.status === 4}
+                                  onChange={() => handleToggleSubtask(sub)}
+                                />
+                                <span className="subtask-code">{sub.taskCode}</span>
+                                <span className="subtask-title">{sub.title}</span>
+                              </label>
+                              <button
+                                type="button"
+                                className="btn-remove-subtask"
+                                title="Xóa công việc con"
+                                onClick={() => handleDeleteSubtask(sub.id)}
+                              >
+                                <DeleteOutlineOutlinedIcon style={{ fontSize: 16 }} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <form onSubmit={handleAddSubtask} className="subtask-add-form">
+                        <input
+                          type="text"
+                          placeholder="Thêm công việc con (Subtask) mới..."
+                          value={newSubtaskTitle}
+                          onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                        />
+                        <button type="submit" className="btn-secondary">+ Thêm việc con</button>
+                      </form>
+                    </>
+                  );
+                })()}
+              </div>
 
               <div className="comments-section">
                 <h3><ChatBubbleOutlineOutlinedIcon fontSize="small" /> Thảo Luận & Ghi Chú ({selectedTask.comments?.length || 0})</h3>
