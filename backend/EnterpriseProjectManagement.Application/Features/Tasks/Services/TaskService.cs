@@ -46,7 +46,7 @@ public class TaskService : ITaskService
         var userDict = users.ToDictionary(u => u.Id, u => u.FullName);
 
         var result = new List<TaskResponseDto>();
-        foreach (var task in tasks.Where(t => t.ParentTaskId == null)) // Lấy danh sách task gốc
+        foreach (var task in tasks.Where(t => t.ParentTaskId == null))
         {
             var subTasks = tasks.Where(s => s.ParentTaskId == task.Id)
                                 .Select(s => new SubTaskSummaryDto(s.Id, s.TaskCode, s.Title, s.Status))
@@ -79,7 +79,6 @@ public class TaskService : ITaskService
 
     public async Task<IReadOnlyList<MyTaskResponseDto>> GetMyTasksAsync(Guid userId, CancellationToken cancellationToken = default)
     {
-        // Lấy tất cả task được phân công cho người dùng hoặc do người dùng tạo nếu chưa phân công
         var userStr = userId.ToString();
         var tasks = await _taskRepository.FindAsync(
             t => t.AssigneeId == userId || (t.AssigneeId == null && t.CreatedBy == userStr), 
@@ -126,7 +125,6 @@ public class TaskService : ITaskService
             ));
         }
 
-        // Sắp xếp: Ưu tiên Quá hạn -> Đến hạn gần nhất -> Độ ưu tiên cao
         return result
             .OrderByDescending(t => t.IsOverdue)
             .ThenBy(t => t.Status == ProjectTaskStatus.Done)
@@ -182,7 +180,6 @@ public class TaskService : ITaskService
         var project = await _projectRepository.GetByIdAsync(request.ProjectId, cancellationToken);
         if (project == null) throw new KeyNotFoundException("Dự án không tồn tại.");
 
-        // Tự động sinh TaskCode dựa trên mã dự án (Kế thừa bài toán từ Talgent: PRJ-1, PRJ-2...)
         var existingTasks = await _taskRepository.FindAsync(t => t.ProjectId == request.ProjectId, cancellationToken);
         var nextNumber = existingTasks.Count + 1;
         var taskCode = $"{project.Code}-{nextNumber}";

@@ -77,7 +77,7 @@ Khi thầy cô hỏi: *"Em đã áp dụng SOLID như thế nào trong dự án?
 2. **Project**: Dự án, mã dự án (`Code`), ngày bắt đầu/kết thúc, trạng thái.
 3. **ProjectMember**: Bảng liên kết nhiều - nhiều giữa `User` và `Project`, gắn kèm vai trò (`Owner`, `ProjectManager`, `Member`, `Viewer`).
 4. **ProjectTask**: Công việc cụ thể:
-   - `TaskCode`: Mã task sinh tự động (kế thừa từ bài toán thực tế của Talgent, ví dụ: `PRJ-101`).
+   - `TaskCode`: Mã task sinh tự động (ví dụ: `PRJ-101`).
    - Phân cấp `ParentTaskId` và `SubTasks` (Task cha và danh sách Task con).
    - Tiến độ (`Todo`, `InProgress`, `InReview`, `Done`, `Blocked`).
    - Độ ưu tiên (`Low`, `Medium`, `High`, `Urgent`).
@@ -244,7 +244,7 @@ Tầng `Infrastructure` giải quyết các bài toán kỹ thuật cụ thể m
 
 ## 11. Phân Hệ Thống Kê Hiệu Suất & Phân Bổ Tải (Analytics & Workload Allocation)
 
-Kế thừa trực tiếp từ bài toán thực tế `allocate-task-statistic` của dự án Talgent:
+Nghiệp vụ thống kê và phân bổ tải công việc cho các thành viên trong dự án:
 
 ### 1. Thuật toán Phân Bổ Tải (`AllocateTaskStatistic`)
 - **Tỷ lệ hoàn thành dự án (`CompletionRate`)**: 
@@ -264,7 +264,7 @@ Kế thừa trực tiếp từ bài toán thực tế `allocate-task-statistic` 
 
 ## 12. Phân Hệ Biên Bản Cuộc Họp & Phân Công Hành Động (Meeting Notes & Action Items)
 
-Kế thừa trực tiếp từ `MeetingNoteController.cs` trong codebase Talgent:
+Nghiệp vụ quản lý biên bản cuộc họp và hạng mục hành động:
 
 ### 1. Ý nghĩa Nghiệp vụ
 - Trong môi trường doanh nghiệp, các buổi họp giao ban / Sprint Review / Daily Standup đều cần lưu lại biên bản:
@@ -349,8 +349,8 @@ frontend/src/assets/styles/
 
 ## 16. Phân Hệ Không Gian Làm Việc Cá Nhân & Quản Lý Công Việc Của Tôi (Personal Workspace & My Tasks)
 
-### 16.1. Nghiệp vụ & Kế thừa từ Talgent
-- Trong các nền tảng quản lý dự án doanh nghiệp lớn (như Talgent với `PersonalWorkSpaceController`), người dùng không chỉ xem danh sách dự án mà cần một trang cá nhân tập trung (**My Tasks**) để theo dõi tất cả đầu việc được phân công trên nhiều dự án khác nhau.
+### 16.1. Nghiệp vụ Quản lý Công việc Cá nhân
+- Trong các nền tảng quản lý dự án doanh nghiệp lớn, người dùng không chỉ xem danh sách dự án mà cần một trang cá nhân tập trung (**My Tasks**) để theo dõi tất cả đầu việc được phân công trên nhiều dự án khác nhau.
 - Các yêu cầu cốt lõi được kế thừa:
   1. **Tập trung hóa công việc**: Tự động gom toàn bộ các công việc gán cho tài khoản đăng nhập hiện tại từ mọi dự án mà thành viên tham gia.
   2. **Bộ lọc đa chiều theo tiến trình**:

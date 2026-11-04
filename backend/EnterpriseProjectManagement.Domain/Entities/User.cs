@@ -10,7 +10,6 @@ public class User : BaseEntity
     public string? AvatarUrl { get; set; }
     public bool IsActive { get; set; } = true;
 
-    // Navigation properties
     public ICollection<ProjectMember> ProjectMemberships { get; set; } = new List<ProjectMember>();
     public ICollection<ProjectTask> AssignedTasks { get; set; } = new List<ProjectTask>();
 }

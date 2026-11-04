@@ -6,10 +6,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EnterpriseProjectManagement.Infrastructure.Repositories;
 
-/// <summary>
-/// Generic Repository Pattern: Triển khai IRepository<T>
-/// Tuân thủ nguyên lý Single Responsibility và Open/Closed.
-/// </summary>
 public class Repository<T> : IRepository<T> where T : BaseEntity
 {
     protected readonly ApplicationDbContext _context;
@@ -50,7 +46,6 @@ public class Repository<T> : IRepository<T> where T : BaseEntity
 
     public Task DeleteAsync(T entity, CancellationToken cancellationToken = default)
     {
-        // Thực hiện Soft Delete thay vì xóa cứng (Hard Delete)
         entity.IsDeleted = true;
         entity.UpdatedAt = DateTime.UtcNow;
         _context.Entry(entity).State = EntityState.Modified;

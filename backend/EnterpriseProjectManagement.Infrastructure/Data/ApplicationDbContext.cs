@@ -21,7 +21,6 @@ public class ApplicationDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
-        // Global Query Filter cho Soft Delete
         modelBuilder.Entity<User>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<Project>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<ProjectMember>().HasQueryFilter(e => !e.IsDeleted);
@@ -29,7 +28,6 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<TaskComment>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<MeetingNote>().HasQueryFilter(e => !e.IsDeleted);
 
-        // User Cấu hình
         modelBuilder.Entity<User>(entity =>
         {
             entity.HasKey(e => e.Id);
@@ -38,7 +36,6 @@ public class ApplicationDbContext : DbContext
             entity.Property(e => e.FullName).IsRequired().HasMaxLength(100);
         });
 
-        // Project Cấu hình
         modelBuilder.Entity<Project>(entity =>
         {
             entity.HasKey(e => e.Id);
@@ -47,7 +44,6 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(e => e.Code).IsUnique();
         });
 
-        // ProjectMember Cấu hình
         modelBuilder.Entity<ProjectMember>(entity =>
         {
             entity.HasKey(e => e.Id);
@@ -65,7 +61,6 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(e => new { e.ProjectId, e.UserId }).IsUnique();
         });
 
-        // ProjectTask Cấu hình
         modelBuilder.Entity<ProjectTask>(entity =>
         {
             entity.HasKey(e => e.Id);
@@ -88,7 +83,6 @@ public class ApplicationDbContext : DbContext
                   .OnDelete(DeleteBehavior.Restrict);
         });
 
-        // TaskComment Cấu hình
         modelBuilder.Entity<TaskComment>(entity =>
         {
             entity.HasKey(e => e.Id);
@@ -105,7 +99,6 @@ public class ApplicationDbContext : DbContext
                   .OnDelete(DeleteBehavior.Restrict);
         });
 
-        // MeetingNote Cấu hình
         modelBuilder.Entity<MeetingNote>(entity =>
         {
             entity.HasKey(e => e.Id);

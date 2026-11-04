@@ -122,7 +122,6 @@ public class ProjectService : IProjectService
 
         await _projectRepository.AddAsync(project, cancellationToken);
 
-        // Tự động gán người tạo làm Owner của dự án
         var member = new ProjectMember
         {
             ProjectId = project.Id,
@@ -201,10 +200,6 @@ public class ProjectService : IProjectService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
-    /// <summary>
-    /// Kế thừa bài toán allocate-task-statistic từ Talgent
-    /// Thống kê tỷ lệ phân bổ công việc theo thành viên và tiến độ dự án
-    /// </summary>
     public async Task<ProjectAnalyticsDto> GetProjectAnalyticsAsync(Guid projectId, CancellationToken cancellationToken = default)
     {
         var project = await _projectRepository.GetByIdAsync(projectId, cancellationToken);

@@ -52,7 +52,6 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Khởi tạo schema CSDL tự động nếu database chưa tồn tại
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
