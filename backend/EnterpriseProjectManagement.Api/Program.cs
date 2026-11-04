@@ -136,6 +136,28 @@ using (var scope = app.Services.CreateScope())
             );
             CREATE INDEX [IX_ProjectChatMessages_ProjectId] ON [dbo].[ProjectChatMessages] ([ProjectId]);
         END
+
+        IF OBJECT_ID(N'dbo.TaskDependencies', N'U') IS NULL
+        BEGIN
+            CREATE TABLE [dbo].[TaskDependencies] (
+                [Id] uniqueidentifier NOT NULL,
+                [ProjectId] uniqueidentifier NOT NULL,
+                [PredecessorTaskId] uniqueidentifier NOT NULL,
+                [SuccessorTaskId] uniqueidentifier NOT NULL,
+                [LagDays] int NOT NULL,
+                [CreatedAt] datetime2 NOT NULL,
+                [CreatedBy] nvarchar(max) NULL,
+                [UpdatedAt] datetime2 NULL,
+                [UpdatedBy] nvarchar(max) NULL,
+                [IsDeleted] bit NOT NULL,
+                CONSTRAINT [PK_TaskDependencies] PRIMARY KEY ([Id]),
+                CONSTRAINT [FK_TaskDependencies_Projects_ProjectId] FOREIGN KEY ([ProjectId]) REFERENCES [dbo].[Projects] ([Id]) ON DELETE CASCADE,
+                CONSTRAINT [FK_TaskDependencies_ProjectTasks_PredecessorTaskId] FOREIGN KEY ([PredecessorTaskId]) REFERENCES [dbo].[ProjectTasks] ([Id]) ON DELETE NO ACTION,
+                CONSTRAINT [FK_TaskDependencies_ProjectTasks_SuccessorTaskId] FOREIGN KEY ([SuccessorTaskId]) REFERENCES [dbo].[ProjectTasks] ([Id]) ON DELETE NO ACTION
+            );
+            CREATE UNIQUE INDEX [IX_TaskDependencies_Predecessor_Successor] ON [dbo].[TaskDependencies] ([PredecessorTaskId], [SuccessorTaskId]) WHERE [IsDeleted] = 0;
+            CREATE INDEX [IX_TaskDependencies_ProjectId] ON [dbo].[TaskDependencies] ([ProjectId]);
+        END
     ");
 }
 

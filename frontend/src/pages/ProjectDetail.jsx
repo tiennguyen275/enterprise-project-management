@@ -4,6 +4,7 @@ import { createProjectHubConnection } from '../services/signalr';
 import ForumOutlinedIcon from '@mui/icons-material/ForumOutlined';
 import AutoAwesomeOutlinedIcon from '@mui/icons-material/AutoAwesomeOutlined';
 import SendOutlinedIcon from '@mui/icons-material/SendOutlined';
+import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
 import { useParams, Link } from 'react-router-dom';
 import api from '../services/api';
 import Navbar from '../components/Navbar';
@@ -126,6 +127,11 @@ export default function ProjectDetail() {
   const [chatSending, setChatSending] = useState(false);
   const [signalRConnected, setSignalRConnected] = useState(false);
   const chatBottomRef = useRef(null);
+  const [scheduleData, setScheduleData] = useState(null);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [showDependencyModal, setShowDependencyModal] = useState(false);
+  const [newDep, setNewDep] = useState({ predecessorTaskId: '', successorTaskId: '', lagDays: 0 });
+  const [depError, setDepError] = useState('');
 
   const fetchProjectData = async () => {
     try {
@@ -135,18 +141,20 @@ export default function ProjectDetail() {
       if (timeframeFilter.endDate) params.append('endDate', timeframeFilter.endDate);
       const healthQuery = params.toString() ? `?${params.toString()}` : '';
 
-      const [projRes, tasksRes, analyticsRes, notesRes, healthRes] = await Promise.all([
+      const [projRes, tasksRes, analyticsRes, notesRes, healthRes, scheduleRes] = await Promise.all([
         api.get(`/projects/${id}`),
         api.get(`/tasks/project/${id}`),
         api.get(`/projects/${id}/analytics`),
         api.get(`/meetingnotes/project/${id}`),
-        api.get(`/status-reports/project/${id}${healthQuery}`)
+        api.get(`/status-reports/project/${id}${healthQuery}`),
+        api.get(`/projects/${id}/schedule`)
       ]);
       setProject(projRes.data);
       setTasks(tasksRes.data);
       setAnalytics(analyticsRes.data);
       setNotes(notesRes.data);
       setHealthOverview(healthRes.data);
+      if (scheduleRes) setScheduleData(scheduleRes.data);
     } catch (err) {
       console.error('Lỗi tải dữ liệu dự án:', err);
     } finally {
@@ -244,6 +252,52 @@ export default function ProjectDetail() {
     }
   }, [chatMessages, activeTab]);
 
+  const fetchScheduleData = async () => {
+    try {
+      setScheduleLoading(true);
+      const res = await api.get(`/projects/${id}/schedule`);
+      setScheduleData(res.data);
+    } catch (err) {
+      console.error('Loi tai du lieu duong gang CPM:', err);
+    } finally {
+      setScheduleLoading(false);
+    }
+  };
+
+  const handleAddDependency = async (e) => {
+    e.preventDefault();
+    setDepError('');
+    if (!newDep.predecessorTaskId || !newDep.successorTaskId) {
+      setDepError('Vui lòng chọn cả công việc trước và công việc sau.');
+      return;
+    }
+    if (newDep.predecessorTaskId === newDep.successorTaskId) {
+      setDepError('Công việc không thể phụ thuộc vào chính nó.');
+      return;
+    }
+    try {
+      await api.post(`/projects/${id}/dependencies`, {
+        predecessorTaskId: newDep.predecessorTaskId,
+        successorTaskId: newDep.successorTaskId,
+        lagDays: parseInt(newDep.lagDays || 0, 10),
+      });
+      setShowDependencyModal(false);
+      setNewDep({ predecessorTaskId: '', successorTaskId: '', lagDays: 0 });
+      fetchScheduleData();
+    } catch (err) {
+      setDepError(err.response?.data?.message || 'Lỗi thêm ràng buộc công việc.');
+    }
+  };
+
+  const handleDeleteDependency = async (depId) => {
+    try {
+      await api.delete(`/projects/${id}/dependencies/${depId}`);
+      fetchScheduleData();
+    } catch (err) {
+      console.error('Loi xoa rang buoc:', err);
+    }
+  };
+
   const fetchHealthOverview = async (start, end) => {
     try {
       const params = new URLSearchParams();
@@ -264,15 +318,19 @@ export default function ProjectDetail() {
       api.get(`/tasks/project/${id}`),
       api.get(`/projects/${id}/analytics`),
       api.get(`/meetingnotes/project/${id}`),
-      api.get(`/status-reports/project/${id}`)
+      api.get(`/status-reports/project/${id}`),
+      api.get(`/projects/${id}/schedule`)
     ])
-      .then(([projRes, tasksRes, analyticsRes, notesRes, healthRes]) => {
+      .then(([projRes, tasksRes, analyticsRes, notesRes, healthRes, scheduleRes]) => {
         if (isMounted) {
           setProject(projRes.data);
           setTasks(tasksRes.data);
           setAnalytics(analyticsRes.data);
           setNotes(notesRes.data);
           setHealthOverview(healthRes.data);
+          if (scheduleRes) {
+            setScheduleData(scheduleRes.data);
+          }
         }
       })
       .catch((err) => {
@@ -733,6 +791,16 @@ export default function ProjectDetail() {
           >
             <ViewKanbanOutlinedIcon fontSize="small" />
             <span>Bảng Kanban (Kéo Thả)</span>
+          </button>
+          <button 
+            className={`tab-btn ${activeTab === 'gantt' ? 'active' : ''}`}
+            onClick={() => {
+              setActiveTab('gantt');
+              fetchScheduleData();
+            }}
+          >
+            <AccountTreeOutlinedIcon fontSize="small" />
+            <span>Tiến Độ & Đường Găng (CPM)</span>
           </button>
           <button 
             className={`tab-btn ${activeTab === 'chat' ? 'active' : ''}`}
@@ -1293,7 +1361,162 @@ export default function ProjectDetail() {
           </div>
         )}
 
-        {activeTab === 'analytics' && analytics && (
+{activeTab === 'gantt' && (
+          <div className="gantt-cpm-layout">
+            <div className="cpm-summary-grid">
+              <div className="cpm-stat-card">
+                <span className="stat-title">Tổng Thời Lượng Dự Án</span>
+                <strong className="stat-val duration-text">{scheduleData?.totalProjectDays || 0} ngày</strong>
+                <span className="stat-hint">Tính từ ngày bắt đầu dự án</span>
+              </div>
+              <div className="cpm-stat-card">
+                <span className="stat-title">Ngày Hoàn Thành Dự Kiến</span>
+                <strong className="stat-val projected-text">
+                  {scheduleData?.projectedEndDate ? new Date(scheduleData.projectedEndDate).toLocaleDateString('vi-VN') : '---'}
+                </strong>
+                <span className="stat-hint">Thời điểm cán đích theo đường găng</span>
+              </div>
+              <div className="cpm-stat-card">
+                <span className="stat-title">Công Việc Thuộc Đường Găng</span>
+                <strong className="stat-val critical-text">{scheduleData?.criticalTasksCount || 0} việc</strong>
+                <span className="stat-hint">Độ trôi (Total Float) = 0 ngày</span>
+              </div>
+              <div className="cpm-stat-card">
+                <span className="stat-title">Số Lượng Ràng Buộc (FS)</span>
+                <strong className="stat-val">{scheduleData?.dependencies?.length || 0} liên kết</strong>
+                <span className="stat-hint">Quan hệ hoàn thành - bắt đầu</span>
+              </div>
+            </div>
+
+            <div className="cpm-action-toolbar">
+              <div className="toolbar-info">
+                <span>Chú giải:</span>
+                <span className="critical-legend">Đường găng (Bắt buộc đúng hạn)</span>
+                <span className="float-legend">Có thời gian dự trữ (Slack)</span>
+              </div>
+              <button
+                type="button"
+                className="btn-add-dep"
+                onClick={() => {
+                  setDepError('');
+                  setShowDependencyModal(true);
+                }}
+              >
+                <AddIcon fontSize="small" />
+                <span>Thêm Ràng Buộc (Finish-to-Start)</span>
+              </button>
+            </div>
+
+            <div className="cpm-table-wrapper">
+              <table className="cpm-table">
+                <thead>
+                  <tr>
+                    <th>Mã việc</th>
+                    <th>Tên công việc</th>
+                    <th className="col-center">Thời lượng</th>
+                    <th className="col-center">ES / EF</th>
+                    <th className="col-center">LS / LF</th>
+                    <th className="col-center">Độ trôi (Float)</th>
+                    <th className="col-center">Phân loại</th>
+                    <th>Biểu đồ tiến độ (Gantt CPM Timeline)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {scheduleLoading ? (
+                    <tr>
+                      <td colSpan="8" style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>
+                        Đang tính toán ma trận đường găng CPM...
+                      </td>
+                    </tr>
+                  ) : !scheduleData || scheduleData.schedule.length === 0 ? (
+                    <tr>
+                      <td colSpan="8" style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>
+                        Chưa có dữ liệu công việc để thiết lập tiến độ.
+                      </td>
+                    </tr>
+                  ) : (
+                    scheduleData.schedule.map((item) => {
+                      const totalDays = Math.max(1, scheduleData.totalProjectDays || 1);
+                      const leftPercent = Math.max(0, Math.min(95, (item.earlyStartDay / totalDays) * 100));
+                      const widthPercent = Math.max(4, Math.min(100 - leftPercent, (item.durationDays / totalDays) * 100));
+
+                      return (
+                        <tr key={item.taskId} className={item.isCritical ? 'is-critical-row' : ''}>
+                          <td><strong>{item.taskCode}</strong></td>
+                          <td>
+                            <div style={{ fontWeight: 600 }}>{item.title}</div>
+                            {item.assigneeName && (
+                              <small style={{ color: '#64748b' }}>Phụ trách: {item.assigneeName}</small>
+                            )}
+                          </td>
+                          <td className="col-center">{item.durationDays} ngày</td>
+                          <td className="col-center">N{item.earlyStartDay} - N{item.earlyFinishDay}</td>
+                          <td className="col-center">N{item.lateStartDay} - N{item.lateFinishDay}</td>
+                          <td className="col-center">
+                            <span className={`float-pill ${item.isCritical ? 'zero-float' : ''}`}>
+                              {item.totalFloatDays} ngày
+                            </span>
+                          </td>
+                          <td className="col-center">
+                            {item.isCritical ? (
+                              <span className="badge-critical">Đường găng</span>
+                            ) : (
+                              <span className="badge-normal">Dự trữ</span>
+                            )}
+                          </td>
+                          <td className="gantt-bar-cell">
+                            <div className="gantt-track">
+                              <div
+                                className={`gantt-bar ${item.isCritical ? 'bar-critical' : 'bar-normal'}`}
+                                style={{
+                                  left: `${leftPercent}%`,
+                                  width: `${widthPercent}%`,
+                                }}
+                                title={`${item.taskCode}: ${item.title} (${item.durationDays} ngày, ES: ${item.earlyStartDay}, EF: ${item.earlyFinishDay}, Float: ${item.totalFloatDays}d)`}
+                              >
+                                {item.durationDays}d
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="dependencies-card">
+              <h4>Danh Sách Ràng Buộc Thứ Tự Thực Hiện (Precedence Relationships)</h4>
+              <p>Mô hình quan hệ Finish-to-Start (FS): Công việc sau chỉ được bắt đầu sau khi công việc trước đã hoàn tất.</p>
+
+              {(!scheduleData?.dependencies || scheduleData.dependencies.length === 0) ? (
+                <span className="no-deps-text">Chưa có ràng buộc phụ thuộc nào giữa các công việc trong dự án này.</span>
+              ) : (
+                <div className="dep-list">
+                  {scheduleData.dependencies.map((dep) => (
+                    <div key={dep.id} className="dep-chip">
+                      <strong>{dep.predecessorCode}</strong>
+                      <span className="dep-arrow">➔</span>
+                      <strong>{dep.successorCode}</strong>
+                      {dep.lagDays > 0 && <small style={{ color: '#64748b' }}>(Lag: +{dep.lagDays}d)</small>}
+                      <button
+                        type="button"
+                        className="btn-del-dep"
+                        title="Xóa ràng buộc này"
+                        onClick={() => handleDeleteDependency(dep.id)}
+                      >
+                        <CloseIcon style={{ fontSize: 14 }} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+                {activeTab === 'analytics' && analytics && (
           <div className="analytics-layout">
             <div className="stats-cards-grid">
               <div className="stat-card">
@@ -1499,6 +1722,86 @@ export default function ProjectDetail() {
                 <div className="modal-actions">
                   <button type="button" onClick={() => setShowMemberModal(false)} className="btn-secondary">Hủy</button>
                   <button type="submit" className="btn-primary">Thêm Thành Viên</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {showDependencyModal && (
+          <div className="modal-backdrop">
+            <div className="modal-card">
+              <h2>Thêm Ràng Buộc Thứ Tự Công Việc</h2>
+              <p>Thiết lập quan hệ Finish-to-Start (FS) nhằm tự động cập nhật tiến độ và đường găng (CPM).</p>
+
+              {depError && (
+                <div className="alert-error">
+                  <ErrorOutlineOutlinedIcon fontSize="small" />
+                  <span>{depError}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleAddDependency}>
+                <div className="form-group">
+                  <label>Công việc đi trước (Predecessor) *</label>
+                  <select
+                    required
+                    value={newDep.predecessorTaskId}
+                    onChange={(e) => setNewDep({ ...newDep, predecessorTaskId: e.target.value })}
+                  >
+                    <option value="">-- Chọn công việc đi trước --</option>
+                    {tasks.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.taskCode}: {t.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Công việc đi sau (Successor) *</label>
+                  <select
+                    required
+                    value={newDep.successorTaskId}
+                    onChange={(e) => setNewDep({ ...newDep, successorTaskId: e.target.value })}
+                  >
+                    <option value="">-- Chọn công việc đi sau --</option>
+                    {tasks
+                      .filter((t) => t.id !== newDep.predecessorTaskId)
+                      .map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.taskCode}: {t.title}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Độ trễ cách ngày (Lag Days)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="180"
+                    value={newDep.lagDays}
+                    onChange={(e) => setNewDep({ ...newDep, lagDays: e.target.value })}
+                    placeholder="Mặc định 0 ngày (bắt đầu ngay sau khi việc trước xong)"
+                  />
+                </div>
+
+                <div className="modal-actions">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDepError('');
+                      setShowDependencyModal(false);
+                    }}
+                    className="btn-secondary"
+                  >
+                    Hủy bỏ
+                  </button>
+                  <button type="submit" className="btn-primary">
+                    Xác nhận liên kết
+                  </button>
                 </div>
               </form>
             </div>

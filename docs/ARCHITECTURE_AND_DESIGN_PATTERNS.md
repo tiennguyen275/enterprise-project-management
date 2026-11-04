@@ -455,3 +455,34 @@ Mô hình mặc định là `gemini-2.5-flash`, đổi qua mục `Gemini:Model`.
 ### 21.3. Đồng Bộ Trạng Thái Kanban Thời Gian Thực
 - Khi một người dùng tạo mới công việc, kéo thả chuyển trạng thái hoặc phân công lại người nhận việc, `TasksController` gửi thông báo `ReceiveTaskUpdate` qua SignalR.
 - Giao diện của tất cả các thành viên khác đang theo dõi dự án tự động cập nhật thẻ công việc trên bảng Kanban mà không cần tải lại toàn bộ trang (Zero-Refresh Live Board).
+
+
+---
+
+## 22. Lõi Thuật Toán Đường Găng (CPM - Critical Path Method) & Biểu Đồ Tiến Độ Gantt
+
+### 22.1. Mô hình Ràng Buộc Phụ Thuộc (Finish-to-Start Precedence)
+- Thực thể `TaskDependency` lưu trữ liên kết giữa `PredecessorTaskId` (công việc trước) và `SuccessorTaskId` (công việc sau) cùng thời gian trễ `LagDays`.
+- **Kiểm tra chống chu trình (Cycle Detection)**: Trước khi thêm một liên kết A -> B, hệ thống sử dụng thuật toán duyệt đồ thị theo chiều sâu (Depth-First Search - DFS) để kiểm tra xem có tồn tại đường đi từ B ngược về A hay không. Nếu có, hệ thống lập tức từ chối và cảnh báo lỗi để đảm bảo đồ thị phụ thuộc luôn là đồ thị có hướng không chu trình (DAG - Directed Acyclic Graph).
+
+### 22.2. Thuật toán Hai Lượt Tính Đường Găng (Two-Pass CPM Algorithm)
+1. **Sắp xếp Tô-pô (Topological Sort)**:
+   - Sử dụng giải thuật Kahn dựa trên bán bậc vào (In-Degree) để duyệt qua danh sách công việc theo đúng trình tự phụ thuộc hợp lệ.
+2. **Nước đi xuôi (Forward Pass)**:
+   - Xác định thời điểm sớm nhất có thể bắt đầu (ES) và kết thúc (EF):
+     $$ES_j = \max_{p \in \text{Predecessors}(j)} (EF_p + \text{Lag}_{pj})$$
+     $$EF_j = ES_j + D_j$$
+   - Tổng thời lượng hoàn thành dự án: $$T_{\text{project}} = \max_i (EF_i)$$.
+3. **Nước đi ngược (Backward Pass)**:
+   - Xác định thời điểm muộn nhất có thể hoàn thành (LF) và bắt đầu (LS) mà không làm trễ toàn bộ dự án:
+     $$LF_i = \min_{s \in \text{Successors}(i)} (LS_s - \text{Lag}_{is})$$
+     $$LS_i = LF_i - D_i$$
+4. **Độ trôi tổng thể (Total Float / Slack) & Đường găng (Critical Path)**:
+   - $$\text{Total Float}_i = LS_i - ES_i = LF_i - EF_i$$.
+   - **Công việc găng (Critical Task)**: Là những công việc có $$\text{Total Float} = 0$$. Mọi sự chậm trễ trên các công việc găng sẽ trực tiếp làm lùi ngày hoàn thành của toàn bộ dự án.
+
+### 22.3. Trực Quan Hóa Biểu Đồ Gantt (Interactive Gantt Chart)
+- Giao diện cung cấp bảng phân tích chi tiết: Thời lượng ($D$), $ES$, $EF$, $LS$, $LF$, Độ trôi ($Float$) và phân loại trực quan:
+  - Thẻ găng hiển thị viền đỏ nổi bật (Critical Gradient) với độ trôi 0 ngày.
+  - Thẻ dự trữ hiển thị thanh màu xanh tím kèm chỉ số ngày có thể trì hoãn an toàn.
+- Cho phép người dùng trực tiếp thêm/xóa các liên kết Finish-to-Start và cập nhật lại toàn bộ ma trận tiến độ ngay tức thì.

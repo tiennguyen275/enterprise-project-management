@@ -97,9 +97,9 @@ Tuyệt đối **không click chuột lung tung**. Hãy dẫn dắt người ngh
 | Tầng | Thư mục trong dự án | Trách nhiệm cốt lõi | Các tệp tiêu biểu |
 | :--- | :--- | :--- | :--- |
 | **Domain** | `backend/.../Domain/` | Là "Hiến pháp" của hệ thống. Chứa các thực thể cốt lõi, không chứa bất kỳ logic cơ sở dữ liệu hay thư viện ngoài nào. | `BaseEntity.cs`<br>`User.cs`<br>`Project.cs`<br>`ProjectTask.cs`<br>`ProjectStatusReport.cs` |
-| **Application** | `backend/.../Application/` | Là "Bộ não điều phối nghiệp vụ". Định nghĩa Interface (`IRepository`, `IUnitOfWork`), tạo DTOs, thực thi các tính toán logic và kiểm tra quyền. | `IRepository.cs`<br>`IUnitOfWork.cs`<br>`IAiTextGenerator.cs`<br>`IRealtimeNotificationService.cs`<br>`TaskService.cs`<br>`StatusReportService.cs`<br>`AiAssistantService.cs`<br>`ProjectChatService.cs` |
+| **Application** | `backend/.../Application/` | Là "Bộ não điều phối nghiệp vụ". Định nghĩa Interface (`IRepository`, `IUnitOfWork`), tạo DTOs, thực thi các tính toán logic và kiểm tra quyền. | `IRepository.cs`<br>`IUnitOfWork.cs`<br>`IAiTextGenerator.cs`<br>`IRealtimeNotificationService.cs`<br>`TaskService.cs`<br>`StatusReportService.cs`<br>`AiAssistantService.cs`<br>`ProjectChatService.cs`<br>`ScheduleService.cs` |
 | **Infrastructure** | `backend/.../Infrastructure/` | Là "Công nhân kỹ thuật". Cài đặt EF Core, kết nối SQL Server, cấu hình Soft Delete, Fluent API. Triển khai các Interface của tầng Application. | `ApplicationDbContext.cs`<br>`Repository.cs`<br>`UnitOfWork.cs`<br>`GeminiTextGenerator.cs` |
-| **Api** | `backend/.../Api/` | Là "Nhân viên tiếp tân". Nhận HTTP request từ ReactJS, xác thực JWT qua `[Authorize]`, gọi tầng Application xử lý và trả về JSON. | `Program.cs`<br>`ProjectHub.cs`<br>`ProjectsController.cs`<br>`TasksController.cs`<br>`StatusReportsController.cs`<br>`AiAssistantController.cs`<br>`ProjectChatController.cs` |
+| **Api** | `backend/.../Api/` | Là "Nhân viên tiếp tân". Nhận HTTP request từ ReactJS, xác thực JWT qua `[Authorize]`, gọi tầng Application xử lý và trả về JSON. | `Program.cs`<br>`ProjectHub.cs`<br>`ProjectsController.cs`<br>`TasksController.cs`<br>`StatusReportsController.cs`<br>`AiAssistantController.cs`<br>`ProjectChatController.cs`<br>`ScheduleController.cs` |
 
 > **Nguyên tắc vàng Clean Architecture:** Mũi tên phụ thuộc chỉ đi từ ngoài vào trong. Tầng `Domain` và `Application` hoàn toàn không phụ thuộc vào SQL Server hay EF Core. Khi muốn đổi DB sang PostgreSQL hoặc viết Unit Test Mock, ta không cần sửa một dòng code nghiệp vụ nào.
 
@@ -292,6 +292,15 @@ const [projRes, tasksRes, analyticsRes, notesRes, healthRes] = await Promise.all
 
 ### Câu 14: Vì sao WebSocket cần xử lý xác thực JWT qua query string thay vì Header chuẩn?
 > **Trả lời:** *"Dạ, giao thức WebSocket chuẩn của trình duyệt (W3C WebSocket API) không hỗ trợ gắn kèm custom header HTTP như `Authorization: Bearer <token>` trong quá trình bắt tay kết nối (Handshake). Để khắc phục mà vẫn đảm bảo an toàn tuyệt đối, SignalR Client gửi token qua tham số query `?access_token=<jwt>`. Phía backend ASP.NET Core, em cấu hình sự kiện `OnMessageReceived` trong `JwtBearerEvents`: kiểm tra nếu request gửi tới endpoint `/hubs`, hệ thống sẽ trích xuất token từ query string gán vào context để xác thực người dùng bình thường."*
+
+### Câu 15: Thuật toán đường găng (Critical Path Method - CPM) trong đồ án hoạt động thế nào và giải quyết bài toán gì?
+> **Trả lời:** *"Dạ, thuật toán CPM là phương pháp toán học kinh điển trong quản lý dự án giúp tìm ra chuỗi công việc quyết định thời gian hoàn thành sớm nhất của toàn bộ dự án:
+> 1. **Mô hình hóa quan hệ:** Hệ thống dùng quan hệ Finish-to-Start (FS) kèm kiểm tra chống chu trình (Cycle Detection bằng thuật toán DFS) để đảm bảo đồ thị là một DAG (Directed Acyclic Graph).
+> 2. **Giải thuật hai lượt (Two-Pass):**
+>    - **Lượt đi xuôi (Forward Pass):** Tính $ES$ (Early Start) và $EF$ (Early Finish) để xác định tổng thời gian dự án $T_{\text{project}}$.
+>    - **Lượt đi ngược (Backward Pass):** Tính $LF$ (Late Finish) và $LS$ (Late Start) từ $T_{\text{project}}$ ngược về đầu.
+>    - **Độ trôi (Total Float):** $\text{Float} = LS - ES$. Những công việc có $\text{Float} = 0$ chính là **Đường găng (Critical Path)**.
+> 3. **Ý nghĩa thực tế:** Giúp người quản lý dự án (PM) biết chính xác những công việc nào tuyệt đối không được trễ hạn (vì trễ 1 ngày là cả dự án trễ 1 ngày), và những công việc nào có thể linh hoạt dời ngày (có Slack) để điều phối nhân sự tối ưu."*
 
 ---
 

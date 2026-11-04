@@ -18,6 +18,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<MeetingNote> MeetingNotes => Set<MeetingNote>();
     public DbSet<ProjectStatusReport> ProjectStatusReports => Set<ProjectStatusReport>();
     public DbSet<ProjectChatMessage> ProjectChatMessages => Set<ProjectChatMessage>();
+    public DbSet<TaskDependency> TaskDependencies => Set<TaskDependency>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -31,6 +32,7 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<MeetingNote>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<ProjectStatusReport>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<ProjectChatMessage>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<TaskDependency>().HasQueryFilter(e => !e.IsDeleted);
 
         modelBuilder.Entity<User>(entity =>
         {
@@ -143,6 +145,30 @@ public class ApplicationDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(e => e.SenderId)
                   .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<TaskDependency>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+
+            entity.HasOne(e => e.Project)
+                  .WithMany()
+                  .HasForeignKey(e => e.ProjectId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.PredecessorTask)
+                  .WithMany()
+                  .HasForeignKey(e => e.PredecessorTaskId)
+                  .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(e => e.SuccessorTask)
+                  .WithMany()
+                  .HasForeignKey(e => e.SuccessorTaskId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(e => new { e.PredecessorTaskId, e.SuccessorTaskId })
+                  .IsUnique()
+                  .HasFilter("[IsDeleted] = 0");
         });
     }
 
