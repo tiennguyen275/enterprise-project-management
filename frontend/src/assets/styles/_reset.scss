@@ -1,5 +1,5 @@
 // ==========================================
-// 2. CSS RESET & GLOBAL BASE
+// 2. CSS RESET & GLOBAL BASE (IMPECCABLE TYPESET)
 // ==========================================
 @use './variables' as *;
 
@@ -19,7 +19,32 @@ html, body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
   overflow-x: hidden;
+}
+
+::selection {
+  background-color: rgba(37, 99, 235, 0.15);
+  color: $primary-hover;
+}
+
+// Custom Sleek Scrollbars
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: $radius-full;
+
+  &:hover {
+    background: #94a3b8;
+  }
 }
 
 // Override Vite's default template quirks
@@ -33,7 +58,7 @@ html, body {
   display: block;
 }
 
-// Global Typography - High Contrast
+// Global Typography - High Contrast Editorial Clarity
 h1, h2, h3, h4, h5, h6 {
   color: $text-title !important;
   font-family: $font-sans;
@@ -44,23 +69,29 @@ h1, h2, h3, h4, h5, h6 {
 h1 {
   font-size: 1.75rem;
   font-weight: 800;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.025em;
 }
 
 h2 {
   font-size: 1.375rem;
-  font-weight: 700;
-  letter-spacing: -0.015em;
+  font-weight: 800;
+  letter-spacing: -0.02em;
 }
 
 h3 {
   font-size: 1.125rem;
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 p {
   color: $text-secondary;
   margin: 0;
+}
+
+// Tabular numbers for KPIs, percentages, dates, and counters
+.stat-value, .kpi-value, .count-badge, .progress-label strong {
+  font-variant-numeric: tabular-nums;
 }
 
 a {

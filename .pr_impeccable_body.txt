@@ -1,0 +1,24 @@
+### 1. Công việc (Work)
+- Áp dụng bộ khung kỹ năng thiết kế **[pbakaus/impeccable](https://github.com/pbakaus/impeccable)** (`document`, `typeset`, `layout`, `bolder`, `colorize`, `delight`, `harden`, `audit`) vào hệ thống thiết kế giao diện của dự án.
+- Khởi tạo tệp tài liệu thiết kế gốc `DESIGN.md` và quy tắc tự động cho AI Agent tại `.agent/rules/impeccable-ui.md`.
+- Tinh chỉnh và nâng cấp toàn bộ các module SCSS (`_variables.scss`, `_reset.scss`, `_dashboard.scss`, `_kanban.scss`, `_my_tasks.scss`) cùng các component React (`ProjectDetail.jsx`, `MyTasks.jsx`) để tạo chiều sâu thị giác, viền nhấn ngữ nghĩa theo mức độ ưu tiên và chống vỡ bố cục.
+
+### 2. Lý do (Why)
+- Giao diện do AI tạo ra thường dễ rơi vào trạng thái chung chung, phẳng lì và thiếu điểm nhấn nhận diện ("AI Slop").
+- Việc thiết lập `DESIGN.md` và `.agent/rules/impeccable-ui.md` giúp chuẩn hóa ngôn ngữ thiết kế của dự án thành một hệ thống quy tắc bắt buộc (Design System), đảm bảo cả giao diện hiện tại lẫn các phân hệ phát triển tiếp theo luôn sắc nét, có nhịp điệu không gian (Spatial Rhythm) và đạt chuẩn tương phản WCAG AAA.
+
+### 3. Những thay đổi (What changed)
+- **Tài liệu & Quy tắc AI Agent**:
+  - `DESIGN.md`: Định nghĩa chi tiết Design Philosophy, Bảng màu ngữ nghĩa, Thang đo kiểu chữ (`typeset`), Nhịp điệu không gian 8px (`layout`), và Checklist kiểm định 6 bước (`audit`).
+  - `.agent/rules/impeccable-ui.md`: Thiết lập rule tự động kích hoạt khi AI chỉnh sửa các tệp `.jsx` và `.scss`.
+  - `docs/ARCHITECTURE_AND_DESIGN_PATTERNS.md`: Bổ sung Mục 17 giải thích phương pháp luận Impeccable UI để phục vụ báo cáo đồ án.
+- **Nâng cấp Hệ thống SCSS & Giao diện (`bolder`, `delight`, `harden`)**:
+  - `_variables.scss`: Bổ sung đường cong chuyển động vật lý `$ease-out-expo: cubic-bezier(0.22, 1, 0.36, 1)` và hệ thống bóng đổ đa tầng.
+  - `_reset.scss`: Bổ sung `font-variant-numeric: tabular-nums` cho các con số thống kê/KPI thẳng hàng tuyệt đối, tùy biến thanh cuộn gọn nhẹ.
+  - `_kanban.scss` & `ProjectDetail.jsx`: Thêm dải viền nhấn ngữ nghĩa bên trái (`priority-border-1..4`) cho từng thẻ công việc trên bảng Kanban theo độ ưu tiên; áp dụng `-webkit-line-clamp: 2` chống tràn tiêu đề dài.
+  - `_my_tasks.scss` & `MyTasks.jsx`: Đồng bộ dải màu độ ưu tiên cho danh sách công việc cá nhân và hiệu ứng hover nổi khối.
+  - `_dashboard.scss`: Thêm viền nhấn thương hiệu phía trên (`.project-card`) và khóa tràn dòng tiêu đề dự án.
+
+### 4. Kiểm thử và xác thực (Validation and proof)
+- Chạy `npm run build` thành công trong 676ms (342 modules transformed, 0 lỗi).
+- Giao diện trên trình duyệt tại `http://localhost:5173` cập nhật tức thời qua Vite HMR với các thẻ dự án và thẻ Kanban có chiều sâu, phân biệt màu sắc độ ưu tiên rõ ràng và chuyển động mượt mà.

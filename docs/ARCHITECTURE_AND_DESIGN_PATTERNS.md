@@ -364,3 +364,19 @@ frontend/src/assets/styles/
 ### 16.2. Thiết kế API Backend
 - **`GET /api/tasks/my-tasks`**: Trả về danh sách `MyTaskResponseDto` kèm mã dự án (`ProjectCode`), tên dự án (`ProjectName`), số lượng thảo luận (`CommentCount`) và cờ cảnh báo quá hạn (`IsOverdue`). Sắp xếp tự động ưu tiên: Quá hạn -> Hạn gần nhất -> Độ ưu tiên cao.
 - **`PATCH /api/tasks/{id}/assign`**: API chỉ định hoặc chuyển giao người thực hiện cho công việc.
+
+
+---
+
+## 17. Tích Hợp Hệ Thống Thiết Kế Impeccable UI & Quy Chuẩn Chống Giao Diện Rập Khuôn (Anti-Slop Design System)
+
+### 17.1. Bối cảnh & Phương pháp luận `pbakaus/impeccable`
+Để tránh việc AI tạo ra giao diện chung chung, phẳng lì và thiếu điểm nhấn thị giác (thường gọi là *"AI Slop"*), dự án áp dụng bộ khung kỹ năng thiết kế từ **`pbakaus/impeccable`** vào cả tài liệu thiết kế gốc ([`DESIGN.md`](file:///E:/EnterpriseProjectManagement/DESIGN.md)) lẫn quy tắc tự động cho AI Agent ([`.agent/rules/impeccable-ui.md`](file:///E:/EnterpriseProjectManagement/.agent/rules/impeccable-ui.md)):
+
+1. **`document` (`DESIGN.md`):** Chuẩn hóa toàn bộ hệ thống Design Tokens, thang đo kiểu chữ (Typography Scale), bảng màu ngữ nghĩa (Semantic Accents) và lưới không gian (8px Spatial Grid) thành nguồn chân lý duy nhất (Single Source of Truth).
+2. **`typeset` (Kiểu chữ & Độ tương phản cao):** Khóa toàn bộ tiêu đề và chỉ số KPI ở màu `#0f172a` (WCAG AAA), kết hợp `letter-spacing: -0.025em` và `font-variant-numeric: tabular-nums` giúp các con số thống kê thẳng hàng tuyệt đối.
+3. **`bolder` & `colorize` (Điểm nhấn ngữ nghĩa):**
+   - Mỗi thẻ dự án (`.project-card`) có viền nhấn thương hiệu phía trên (`border-top: 3.5px solid #2563eb`).
+   - Mỗi thẻ công việc trên bảng Kanban (`.kanban-task-card`) và danh sách cá nhân (`.my-task-row`) có **dải màu ngữ nghĩa bên trái (`priority-border-1..4`)** phản ánh tức thì mức độ ưu tiên (*Thấp*, *Trung bình*, *Cao*, *Khẩn cấp*).
+4. **`delight` & `animate` (Vi tương tác vật lý):** Sử dụng đường cong gia tốc `cubic-bezier(0.22, 1, 0.36, 1)` cùng bóng đổ đa tầng (Multi-layered ambient shadows), tạo cảm giác phản hồi xúc giác mượt mà khi kéo thả và di chuột.
+5. **`harden` (Chống vỡ bố cục):** Áp dụng `-webkit-line-clamp` cho các tiêu đề và mô tả tiếng Việt dài, đồng thời chuẩn hóa trạng thái rỗng (Empty States) trên mọi phân hệ.

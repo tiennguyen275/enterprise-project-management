@@ -272,7 +272,7 @@ export default function MyTasks() {
               return (
                 <div 
                   key={task.id} 
-                  className={`my-task-row ${task.isOverdue ? 'row-overdue' : ''} ${task.status === 4 ? 'row-done' : ''}`}
+                  className={`my-task-row priority-border-${task.priority} ${task.isOverdue ? 'row-overdue' : ''} ${task.status === 4 ? 'row-done' : ''}`}
                 >
                   <div className="task-row-main" onClick={() => handleOpenTaskDetail(task.id)}>
                     <div className="task-meta-top">
