@@ -1,0 +1,4 @@
+#!/bin/sh
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+pwsh -NoProfile -File "$REPO_ROOT/tools/Invoke-PrePushReview.ps1" -Action verify -RepoRoot "$REPO_ROOT"
+exit $?

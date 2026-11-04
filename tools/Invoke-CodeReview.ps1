@@ -13,11 +13,12 @@ if (-not $RepoRoot) {
 }
 
 $failedGates = New-Object System.Collections.Generic.List[string]
+$reviewBuildDir = Join-Path $RepoRoot '.git/review-build'
 
 Write-Host "=== [Gate 1/4] Build Gate: Backend (.NET 10) ===" -ForegroundColor Cyan
 Push-Location (Join-Path $RepoRoot 'backend')
 try {
-    $buildOut = & dotnet build --nologo -v:minimal 2>&1
+    $buildOut = & dotnet build --nologo -v:minimal --artifacts-path $reviewBuildDir 2>&1
     if ($LASTEXITCODE -ne 0) {
         $buildOut | ForEach-Object { Write-Host $_ }
         $failedGates.Add('backend-build-gate')
@@ -32,6 +33,7 @@ try {
     }
 } finally {
     Pop-Location
+    if (Test-Path $reviewBuildDir) { Remove-Item -Recurse -Force $reviewBuildDir -ErrorAction SilentlyContinue }
 }
 
 Write-Host "`n=== [Gate 2/4] Lint & Build Gate: Frontend (React + Vite + Oxlint) ===" -ForegroundColor Cyan

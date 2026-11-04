@@ -1,0 +1,4 @@
+#!/bin/sh
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+pwsh -NoProfile -File "$REPO_ROOT/tools/Test-NoCodeComments.ps1" -RepoRoot "$REPO_ROOT" -Base HEAD
+exit $?

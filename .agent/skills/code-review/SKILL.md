@@ -1,55 +1,48 @@
 ---
 name: code-review
-description: Thực hiện quy trình Code Review đa tầng (Build Gate, Lint Gate, No-Code-Comments Gate, Round 1 Correctness/Security, Round 2 Clean Architecture & SCSS/UI Scope) trước khi commit hoặc merge nhánh. Sử dụng khi người dùng yêu cầu "review code", "kiểm tra code", hoặc tự động chạy trước khi hoàn tất một tính năng.
+description: Quy trình tự động chạy 4 cổng kiểm định (Build, Lint, No-Code-Comments, Hygiene), tiếp theo là 2 vòng Review độc lập (R1, R2) và vòng code-review cuối cùng kèm đóng dấu SHA (stamp) trước khi merge/push.
 ---
 
-# Quy Trình Code Review Tự Động (Multi-Gate & 2-Round Review)
+# Quy Trình Code Review Đa Vòng Tự Động (`R1 + R2 -> code-review -> Stamp`)
 
-Khi thực hiện Code Review cho dự án **Enterprise Project Management**, bắt buộc chạy lần lượt qua **4 Cổng kiểm định tự động (Automated Gates)** và **2 Vòng đánh giá chuyên sâu (Reviewer Rounds)**.
+Quy trình này được kích hoạt **tự động** trước mỗi lần gộp nhánh (`git merge`) hoặc đẩy code (`git push`), đồng thời được bảo vệ cứng bởi Git Hook `.githooks/pre-commit` và `.githooks/pre-push`.
 
-## Bước 1: Chạy 4 Cổng Kiểm Định Tự Động (Automated Gates)
+## 1. Kiến trúc 3 tầng bảo vệ tự động (Không cần gõ lệnh thủ công)
 
-Chạy script kiểm tra tự động tại thư mục gốc của dự án:
+1. **Git Hook `.githooks/pre-commit`:**
+   - Tự động chạy `tools/Test-NoCodeComments.ps1` mỗi khi thực hiện `git commit`. Nếu phát hiện bất kỳ dòng comment thừa nào (`//`, `/* */`, `///`), lệnh commit bị chặn ngay lập tức.
+2. **Git Hook `.githooks/pre-push`:**
+   - Tự động gọi `tools/Invoke-PrePushReview.ps1 -Action verify` mỗi khi thực hiện `git push`.
+   - Kiểm tra file `.git/review-stamp.json` xem mã băm `HEAD` hiện tại đã chạy đủ 2 vòng `R1`, `R2` và vòng `code-review` chưa. Nếu thiếu bất kỳ vòng nào hoặc commit mới chưa được review lại, `git push` sẽ bị từ chối.
+3. **Rule tự động cho AI Agent (`.agent/rules/pre-push-review.md`):**
+   - Ràng buộc AI Agent luôn chạy quy trình `prepare -> R1 & R2 -> code-review -> stamp` trước khi hoàn tất công việc.
 
+## 2. Trình tự thực thi chi tiết
+
+### Bước 1: Prepare & Automated Gates
 ```powershell
-pwsh -NoProfile -File E:\EnterpriseProjectManagement\tools\Invoke-CodeReview.ps1
+pwsh -NoProfile -File E:\EnterpriseProjectManagement\tools\Invoke-PrePushReview.ps1 -Action prepare
 ```
+- Chạy 4 cổng tự động (`Invoke-CodeReview.ps1`).
+- Trích xuất bản diff vào `.git/review-scratch/diff.patch` và sinh 3 file điều phối:
+  - `.git/review-scratch/dispatch-R1.md`
+  - `.git/review-scratch/dispatch-R2.md`
+  - `.git/review-scratch/dispatch-code-review.md`
 
-Script này kiểm tra 4 cổng bắt buộc:
-1. **Gate 1 — Backend Build & Warning Gate:** Chạy `dotnet build` cho toàn bộ solution `.NET 10`. Mọi lỗi biên dịch là `Critical`, mọi cảnh báo (`CS*`, `NU*`) là `High`.
-2. **Gate 2 — Frontend Lint & Build Gate:** Chạy `npm run lint` (`oxlint`) và `npm run build` (`vite build`). Bắt buộc đạt `Found 0 warnings and 0 errors`.
-3. **Gate 3 — No-Code-Comments Gate (`tools/Test-NoCodeComments.ps1`):** Quét toàn bộ các file `.cs`, `.jsx`, `.js`, `.scss`, `.css`, `.ps1`. Không cho phép bất kỳ dòng comment dư thừa nào (`//`, `/* */`, `///`) ngoài các directive của trình biên dịch/linter (như `// eslint-disable-next-line`).
-4. **Gate 4 — Clean Repo & Hygiene Gate:** Đảm bảo không còn file nháp `.pr_*` và không rò rỉ tên dự án tham chiếu bên ngoài trong mã nguồn hoặc giao diện.
+### Bước 2: Khởi chạy song song Round 1 (`R1`) và Round 2 (`R2`)
+Sử dụng công cụ `invoke_subagent` (`TypeName: "research"`) gọi song song 2 subagent:
+- **Subagent R1 (Correctness & Security):** Đọc `dispatch-R1.md` và kiểm tra lỗi logic, chia cho 0, null reference, bảo mật JWT `[Authorize]`, React hooks purity.
+- **Subagent R2 (Architecture & UI Scope):** Đọc `dispatch-R2.md` và kiểm tra ranh giới Clean Architecture, cấm trả Entity trực tiếp, không có comment thừa, chuẩn SCSS & Impeccable UI.
 
-## Bước 2: Đánh Giá Mã Nguồn Qua 2 Vòng (R1 & R2)
+### Bước 3: Khởi chạy vòng `code-review` (Sau khi R1 và R2 hoàn tất)
+Sau khi cả `R1` và `R2` trả kết quả:
+- Gọi `invoke_subagent` (`TypeName: "research"`) đọc `dispatch-code-review.md`.
+- Vòng này kiểm tra độc lập toàn bộ diff để tìm lỗi logic còn sót và cơ hội tối ưu/rút gọn code, bắt buộc mở đầu bằng dòng `Reviewed files: <danh sách file>`.
 
-Sau khi vượt qua 4 cổng tự động, đọc `git diff` của các file thay đổi và rà soát theo 2 vòng:
-
-### Vòng 1 (Round 1 - Correctness, Validation & Security)
-- **Logic & Dữ liệu:** Kiểm tra các trường hợp biên (`null`, danh sách rỗng, chia cho `0` khi tính phần trăm tiến độ/phân bổ tải).
-- **Bảo mật & Phân quyền:** Mọi API thay đổi dữ liệu trong `Controllers/` phải có `[Authorize]` và lấy `UserId` từ JWT Claims, không tin tưởng `UserId` truyền trần từ body nếu không kiểm tra quyền thành viên dự án.
-- **Trạng thái React:** Không gọi hàm bất đồng bộ thiếu xử lý lỗi (`try/catch`), không gọi `setState` đồng bộ trực tiếp trong thân `useEffect` hoặc dùng hàm không thuần khiết (`new Date()`) trực tiếp khi render.
-
-### Vòng 2 (Round 2 - Clean Architecture, Maintainability & UI Scope)
-- **Ranh giới Clean Architecture:** `Domain` không phụ thuộc tầng nào; `Application` chỉ phụ thuộc `Domain`; `Controllers` chỉ gọi `Services` qua Interface và trả về `DTOs` (tuyệt đối không trả trực tiếp Entity của EF Core ra API).
-- **SCSS & Giao diện:** Không viết file `.css` rời rạc ngoài `src/assets/styles/`; khi dùng `-webkit-line-clamp` phải có `line-clamp` đi kèm; màu chữ trên nền sáng phải đảm bảo độ tương phản rõ nét (`#0f172a`).
-
-## Bước 3: Định Dạng Báo Cáo Kết Quả Review
-
-Xuất báo cáo theo đúng định dạng tiếng Việt có dấu đầy đủ:
-
-```markdown
-Reviewed files: <danh sách các file đã kiểm tra>
-Automated Gates: 4/4 Passed (Backend Build, Frontend Lint/Build, No-Code-Comments, Hygiene)
+### Bước 4: Xử lý lỗi (Fix Loop) & Đóng dấu (`Stamp`)
+- Nếu có bất kỳ finding nào từ `R1`, `R2` hoặc `code-review`, tiến hành sửa lỗi, commit lại và lặp lại từ Bước 1.
+- Khi cả 3 vòng đều sạch (`Clean / No findings`), đóng dấu xác nhận cho `HEAD` hiện tại:
+```powershell
+pwsh -NoProfile -File E:\EnterpriseProjectManagement\tools\Invoke-PrePushReview.ps1 -Action stamp -Rounds "R1,R2,code-review"
 ```
-
-Nếu không có lỗi, in dòng:
-`Clean. Không phát hiện lỗi trong các file thay đổi.`
-
-Nếu có lỗi, liệt kê từng lỗi theo cấu trúc:
-```markdown
-### [Critical|High|Medium] Tiêu đề ngắn gọn của vấn đề
-File: relative/path/to/file.ext:lineNumber
-Why: Một câu nêu rõ điều kiện kích hoạt lỗi và hậu quả sai lệch.
-Fix: Một câu nêu rõ cách sửa cụ thể.
-```
+Lúc này `.git/review-stamp.json` được ghi nhận hợp lệ (nằm trong `.git/` nên không làm lộ dấu vết bot lên GitHub) và mở khóa cho phép `git push`.
