@@ -16,6 +16,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<ProjectTask> ProjectTasks => Set<ProjectTask>();
     public DbSet<TaskComment> TaskComments => Set<TaskComment>();
     public DbSet<MeetingNote> MeetingNotes => Set<MeetingNote>();
+    public DbSet<ProjectStatusReport> ProjectStatusReports => Set<ProjectStatusReport>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -27,6 +28,7 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<ProjectTask>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<TaskComment>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<MeetingNote>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<ProjectStatusReport>().HasQueryFilter(e => !e.IsDeleted);
 
         modelBuilder.Entity<User>(entity =>
         {
@@ -104,6 +106,19 @@ public class ApplicationDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Title).IsRequired().HasMaxLength(250);
             entity.Property(e => e.Content).IsRequired();
+
+            entity.HasOne(e => e.Project)
+                  .WithMany()
+                  .HasForeignKey(e => e.ProjectId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ProjectStatusReport>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Title).IsRequired().HasMaxLength(250);
+            entity.Property(e => e.KeyAccomplishments).IsRequired();
+            entity.Property(e => e.CompletionRateSnapshot).HasColumnType("decimal(5,2)");
 
             entity.HasOne(e => e.Project)
                   .WithMany()

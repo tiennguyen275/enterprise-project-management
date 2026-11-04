@@ -1,0 +1,327 @@
+@use './variables' as *;
+
+.status-reports-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.health-overview-banner {
+  background: $bg-surface;
+  border: 1px solid $border-color;
+  border-radius: $radius-lg;
+  padding: 22px 24px;
+  box-shadow: $shadow-sm;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  border-left-width: 5px;
+  border-left-style: solid;
+
+  &.health-rating-1 {
+    border-left-color: $success;
+    background: linear-gradient(90deg, rgba(16, 185, 129, 0.05) 0%, $bg-surface 40%);
+  }
+
+  &.health-rating-2 {
+    border-left-color: $warning;
+    background: linear-gradient(90deg, rgba(245, 158, 11, 0.06) 0%, $bg-surface 40%);
+  }
+
+  &.health-rating-3 {
+    border-left-color: $danger;
+    background: linear-gradient(90deg, rgba(239, 68, 68, 0.06) 0%, $bg-surface 40%);
+  }
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+.health-banner-left {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  .health-status-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  h3 {
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: $text-title;
+    letter-spacing: -0.015em;
+  }
+
+  p {
+    font-size: 0.92rem;
+    color: $text-secondary;
+    line-height: 1.5;
+  }
+}
+
+.health-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: $radius-full;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+
+  &.rating-1 {
+    background: $success-bg;
+    color: #047857;
+    border: 1px solid $success-border;
+  }
+
+  &.rating-2 {
+    background: $warning-bg;
+    color: #b45309;
+    border: 1px solid $warning-border;
+  }
+
+  &.rating-3 {
+    background: $danger-bg;
+    color: #b91c1c;
+    border: 1px solid $danger-border;
+  }
+}
+
+.health-banner-metrics {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+
+  .metric-pill {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    padding: 8px 14px;
+    background: $bg-subtle;
+    border: 1px solid $border-light;
+    border-radius: $radius-md;
+    min-width: 110px;
+
+    span {
+      font-size: 0.75rem;
+      color: $text-muted;
+      font-weight: 600;
+    }
+
+    strong {
+      font-size: 1.2rem;
+      font-weight: 800;
+      color: $text-title;
+      font-variant-numeric: tabular-nums;
+    }
+
+    &.danger strong {
+      color: $danger;
+    }
+
+    &.success strong {
+      color: $success;
+    }
+  }
+}
+
+.status-timeframe-bar {
+  background: $bg-surface;
+  border: 1px solid $border-color;
+  border-radius: $radius-md;
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  box-shadow: $shadow-xs;
+
+  .timeframe-inputs {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+
+    label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: $text-secondary;
+    }
+
+    input[type="date"] {
+      padding: 7px 12px;
+      border: 1px solid $border-color;
+      border-radius: $radius-sm;
+      font-size: 0.85rem;
+      font-variant-numeric: tabular-nums;
+    }
+  }
+
+  .out-of-range-notice {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #b45309;
+    background: $warning-bg;
+    border: 1px solid $warning-border;
+    padding: 6px 12px;
+    border-radius: $radius-sm;
+  }
+}
+
+.status-reports-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+  gap: 20px;
+
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.status-report-card {
+  background: $bg-surface;
+  border: 1px solid $border-color;
+  border-radius: $radius-lg;
+  padding: 22px;
+  box-shadow: $shadow-sm;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  transition: transform 0.2s $ease-out-expo, box-shadow 0.2s $ease-out-expo, border-color 0.2s $ease-out-expo;
+  border-left-width: 4px;
+  border-left-style: solid;
+
+  &.rating-border-1 {
+    border-left-color: $success;
+  }
+
+  &.rating-border-2 {
+    border-left-color: $warning;
+  }
+
+  &.rating-border-3 {
+    border-left-color: $danger;
+  }
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: $shadow-md;
+    border-color: #93c5fd;
+  }
+
+  .report-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+
+    h4 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: $text-title;
+      line-height: 1.4;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+  }
+
+  .report-meta-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    font-size: 0.8rem;
+    color: $text-muted;
+    font-variant-numeric: tabular-nums;
+    padding-bottom: 10px;
+    border-bottom: 1px solid $border-light;
+
+    span {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+  }
+
+  .report-snapshot-bar {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    background: $bg-subtle;
+    padding: 10px 12px;
+    border-radius: $radius-sm;
+    border: 1px solid $border-light;
+
+    .snap-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+
+      span {
+        font-size: 0.72rem;
+        color: $text-muted;
+        font-weight: 600;
+      }
+
+      strong {
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: $text-title;
+        font-variant-numeric: tabular-nums;
+      }
+    }
+  }
+
+  .report-section {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+
+    strong {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: $text-secondary;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    p {
+      font-size: 0.9rem;
+      color: $text-title;
+      line-height: 1.55;
+      white-space: pre-line;
+    }
+
+    &.risk-box {
+      background: $danger-bg;
+      border: 1px solid $danger-border;
+      border-radius: $radius-sm;
+      padding: 10px 12px;
+
+      strong {
+        color: #b91c1c;
+      }
+
+      p {
+        color: #7f1d1d;
+      }
+    }
+  }
+}

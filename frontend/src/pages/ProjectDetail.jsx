@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../services/api';
 import Navbar from '../components/Navbar';
@@ -14,6 +14,9 @@ import ViewKanbanOutlinedIcon from '@mui/icons-material/ViewKanbanOutlined';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import CalendarTodayOutlinedIcon from '@mui/icons-material/CalendarTodayOutlined';
 import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined';
+import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlineOutlined';
+import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined';
 import CloseIcon from '@mui/icons-material/Close';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 
@@ -24,6 +27,12 @@ const COLUMNS = [
   { id: 4, title: 'Hoàn thành (Done)', color: '#10b981' },
 ];
 
+const HEALTH_LABELS = {
+  1: 'Đúng tiến độ (On Track)',
+  2: 'Có rủi ro (At Risk)',
+  3: 'Chậm tiến độ (Delayed)',
+};
+
 export default function ProjectDetail() {
   const { id } = useParams();
 
@@ -32,6 +41,7 @@ export default function ProjectDetail() {
   const [tasks, setTasks] = useState([]);
   const [analytics, setAnalytics] = useState(null);
   const [notes, setNotes] = useState([]);
+  const [healthOverview, setHealthOverview] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const [draggedTaskId, setDraggedTaskId] = useState(null);
@@ -61,26 +71,64 @@ export default function ProjectDetail() {
     actionItems: ''
   }));
 
+  const [timeframeFilter, setTimeframeFilter] = useState({ startDate: '', endDate: '' });
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportError, setReportError] = useState('');
+  const [needsOutOfRangeConfirm, setNeedsOutOfRangeConfirm] = useState(false);
+  const [newReport, setNewReport] = useState(() => {
+    const today = new Date();
+    const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+    return {
+      title: '',
+      reportStartDate: weekAgo.toISOString().substring(0, 10),
+      reportEndDate: today.toISOString().substring(0, 10),
+      healthRating: 1,
+      keyAccomplishments: '',
+      upcomingPlan: '',
+      risksAndBlockers: ''
+    };
+  });
+
   const [selectedTask, setSelectedTask] = useState(null);
   const [commentText, setCommentText] = useState('');
 
   const fetchProjectData = async () => {
     try {
       setLoading(true);
-      const [projRes, tasksRes, analyticsRes, notesRes] = await Promise.all([
+      const params = new URLSearchParams();
+      if (timeframeFilter.startDate) params.append('startDate', timeframeFilter.startDate);
+      if (timeframeFilter.endDate) params.append('endDate', timeframeFilter.endDate);
+      const healthQuery = params.toString() ? `?${params.toString()}` : '';
+
+      const [projRes, tasksRes, analyticsRes, notesRes, healthRes] = await Promise.all([
         api.get(`/projects/${id}`),
         api.get(`/tasks/project/${id}`),
         api.get(`/projects/${id}/analytics`),
-        api.get(`/meetingnotes/project/${id}`)
+        api.get(`/meetingnotes/project/${id}`),
+        api.get(`/status-reports/project/${id}${healthQuery}`)
       ]);
       setProject(projRes.data);
       setTasks(tasksRes.data);
       setAnalytics(analyticsRes.data);
       setNotes(notesRes.data);
+      setHealthOverview(healthRes.data);
     } catch (err) {
       console.error('Lỗi tải dữ liệu dự án:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchHealthOverview = async (start, end) => {
+    try {
+      const params = new URLSearchParams();
+      if (start) params.append('startDate', start);
+      if (end) params.append('endDate', end);
+      const query = params.toString() ? `?${params.toString()}` : '';
+      const res = await api.get(`/status-reports/project/${id}${query}`);
+      setHealthOverview(res.data);
+    } catch (err) {
+      console.error('Lỗi tải báo cáo sức khỏe dự án:', err);
     }
   };
 
@@ -90,14 +138,16 @@ export default function ProjectDetail() {
       api.get(`/projects/${id}`),
       api.get(`/tasks/project/${id}`),
       api.get(`/projects/${id}/analytics`),
-      api.get(`/meetingnotes/project/${id}`)
+      api.get(`/meetingnotes/project/${id}`),
+      api.get(`/status-reports/project/${id}`)
     ])
-      .then(([projRes, tasksRes, analyticsRes, notesRes]) => {
+      .then(([projRes, tasksRes, analyticsRes, notesRes, healthRes]) => {
         if (isMounted) {
           setProject(projRes.data);
           setTasks(tasksRes.data);
           setAnalytics(analyticsRes.data);
           setNotes(notesRes.data);
+          setHealthOverview(healthRes.data);
         }
       })
       .catch((err) => {
@@ -148,6 +198,7 @@ export default function ProjectDetail() {
         actualHours: task.actualHours,
         assigneeId: task.assigneeId
       });
+      fetchHealthOverview(timeframeFilter.startDate, timeframeFilter.endDate);
     } catch (err) {
       alert('Không thể cập nhật trạng thái: ' + (err.response?.data?.message || err.message));
       fetchProjectData();
@@ -234,6 +285,73 @@ export default function ProjectDetail() {
     }
   };
 
+  const handleTimeframeChange = (field, value) => {
+    const updated = { ...timeframeFilter, [field]: value };
+    setTimeframeFilter(updated);
+    fetchHealthOverview(updated.startDate, updated.endDate);
+  };
+
+  const handleOpenReportModal = () => {
+    setReportError('');
+    setNeedsOutOfRangeConfirm(false);
+    setNewReport(prev => ({
+      ...prev,
+      healthRating: healthOverview?.suggestedRating || 1
+    }));
+    setShowReportModal(true);
+  };
+
+  const submitStatusReport = async (skipWarning) => {
+    setReportError('');
+    try {
+      await api.post('/status-reports', {
+        projectId: id,
+        title: newReport.title,
+        reportStartDate: new Date(newReport.reportStartDate).toISOString(),
+        reportEndDate: new Date(newReport.reportEndDate).toISOString(),
+        healthRating: parseInt(newReport.healthRating),
+        keyAccomplishments: newReport.keyAccomplishments,
+        upcomingPlan: newReport.upcomingPlan,
+        risksAndBlockers: newReport.risksAndBlockers,
+        skipOutOfRangeWarning: skipWarning
+      });
+      setShowReportModal(false);
+      setNeedsOutOfRangeConfirm(false);
+      setNewReport(prev => ({
+        ...prev,
+        title: '',
+        keyAccomplishments: '',
+        upcomingPlan: '',
+        risksAndBlockers: ''
+      }));
+      fetchHealthOverview(timeframeFilter.startDate, timeframeFilter.endDate);
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Không thể lưu báo cáo trạng thái.';
+      if (msg.includes('HAVE_TASK_OUT_OF_RANGE')) {
+        setNeedsOutOfRangeConfirm(true);
+        setReportError('Phát hiện có công việc được tạo ngoài khoảng thời gian kỳ báo cáo đã chọn. Bạn có muốn tiếp tục lưu báo cáo không?');
+      } else {
+        setReportError(msg);
+      }
+    }
+  };
+
+  const handleCreateReport = (e) => {
+    e.preventDefault();
+    submitStatusReport(needsOutOfRangeConfirm);
+  };
+
+  const handleDeleteReport = async (reportId) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa báo cáo trạng thái này?')) return;
+    try {
+      await api.delete(`/status-reports/${reportId}`);
+      fetchHealthOverview(timeframeFilter.startDate, timeframeFilter.endDate);
+    } catch (err) {
+      console.error('Lỗi xóa báo cáo:', err);
+      alert('Không thể xóa báo cáo trạng thái.');
+    }
+  };
+
   const handleOpenTaskDetail = async (taskId) => {
     try {
       const res = await api.get(`/tasks/${taskId}`);
@@ -260,7 +378,7 @@ export default function ProjectDetail() {
   };
 
   if (loading) {
-    return <div className="loading-state">Đang tải bảng Kanban dự án...</div>;
+    return <div className="loading-state">Đang tải dữ liệu dự án...</div>;
   }
 
   if (!project) {
@@ -287,6 +405,16 @@ export default function ProjectDetail() {
             <div className="title-group">
               <span className="badge-code">{project.code}</span>
               <h2>{project.name}</h2>
+              {healthOverview && (
+                <span className={`health-badge rating-${healthOverview.suggestedRating}`}>
+                  {healthOverview.suggestedRating === 1 ? (
+                    <CheckCircleOutlineIcon style={{ fontSize: 15 }} />
+                  ) : (
+                    <WarningAmberOutlinedIcon style={{ fontSize: 15 }} />
+                  )}
+                  <span>{HEALTH_LABELS[healthOverview.suggestedRating]}</span>
+                </span>
+              )}
             </div>
             <p className="project-desc">{project.description}</p>
           </div>
@@ -309,6 +437,13 @@ export default function ProjectDetail() {
           >
             <ViewKanbanOutlinedIcon fontSize="small" />
             <span>Bảng Kanban (Kéo Thả)</span>
+          </button>
+          <button 
+            className={`tab-btn ${activeTab === 'status-reports' ? 'active' : ''}`}
+            onClick={() => setActiveTab('status-reports')}
+          >
+            <AssessmentOutlinedIcon fontSize="small" />
+            <span>Báo Cáo Sức Khỏe ({healthOverview?.reports?.length || 0})</span>
           </button>
           <button 
             className={`tab-btn ${activeTab === 'notes' ? 'active' : ''}`}
@@ -402,6 +537,151 @@ export default function ProjectDetail() {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {activeTab === 'status-reports' && healthOverview && (
+          <div className="status-reports-layout">
+            <div className={`health-overview-banner health-rating-${healthOverview.suggestedRating}`}>
+              <div className="health-banner-left">
+                <div className="health-status-row">
+                  <h3>Chẩn Đoán Sức Khỏe Dự Án (R/A/G Health Check)</h3>
+                  <span className={`health-badge rating-${healthOverview.suggestedRating}`}>
+                    {HEALTH_LABELS[healthOverview.suggestedRating]}
+                  </span>
+                </div>
+                <p>{healthOverview.healthSummary}</p>
+              </div>
+
+              <div className="health-banner-metrics">
+                <div className="metric-pill success">
+                  <span>Tiến độ chung</span>
+                  <strong>{healthOverview.completionRate}%</strong>
+                </div>
+                <div className="metric-pill">
+                  <span>Đã hoàn thành</span>
+                  <strong>{healthOverview.completedTasks}/{healthOverview.totalTasks}</strong>
+                </div>
+                <div className={`metric-pill ${healthOverview.overdueTasks > 0 ? 'danger' : ''}`}>
+                  <span>Việc quá hạn</span>
+                  <strong>{healthOverview.overdueTasks}</strong>
+                </div>
+                <button onClick={handleOpenReportModal} className="btn-primary">
+                  <AddIcon fontSize="small" />
+                  <span>Lập Báo Cáo Kỳ Này</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="status-timeframe-bar">
+              <div className="timeframe-inputs">
+                <label>Kiểm tra khung thời gian báo cáo:</label>
+                <input
+                  type="date"
+                  value={timeframeFilter.startDate}
+                  onChange={(e) => handleTimeframeChange('startDate', e.target.value)}
+                />
+                <span>đến</span>
+                <input
+                  type="date"
+                  value={timeframeFilter.endDate}
+                  onChange={(e) => handleTimeframeChange('endDate', e.target.value)}
+                />
+                {(timeframeFilter.startDate || timeframeFilter.endDate) && (
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => {
+                      setTimeframeFilter({ startDate: '', endDate: '' });
+                      fetchHealthOverview('', '');
+                    }}
+                  >
+                    Xóa lọc
+                  </button>
+                )}
+              </div>
+
+              {healthOverview.outOfRangeTasks > 0 && (
+                <div className="out-of-range-notice">
+                  <WarningAmberOutlinedIcon fontSize="small" />
+                  <span>Có {healthOverview.outOfRangeTasks} công việc tạo ngoài khung thời gian này</span>
+                </div>
+              )}
+            </div>
+
+            {healthOverview.reports?.length === 0 ? (
+              <div className="empty-state">
+                <AssessmentOutlinedIcon style={{ fontSize: 60, color: '#94a3b8' }} />
+                <h3>Chưa có báo cáo trạng thái định kỳ nào</h3>
+                <p>Lập báo cáo định kỳ để lưu lại tiến độ, kết quả đạt được và các rủi ro cần xử lý của dự án</p>
+                <button onClick={handleOpenReportModal} className="btn-primary">
+                  <AddIcon fontSize="small" />
+                  <span>Tạo Báo Cáo Trạng Thái Đầu Tiên</span>
+                </button>
+              </div>
+            ) : (
+              <div className="status-reports-grid">
+                {healthOverview.reports.map(report => (
+                  <div key={report.id} className={`status-report-card rating-border-${report.healthRating}`}>
+                    <div className="report-card-header">
+                      <div>
+                        <span className={`health-badge rating-${report.healthRating}`}>
+                          {HEALTH_LABELS[report.healthRating]}
+                        </span>
+                        <h4 style={{ marginTop: 8 }}>{report.title}</h4>
+                      </div>
+                      <button onClick={() => handleDeleteReport(report.id)} className="btn-delete" title="Xóa báo cáo">
+                        <DeleteOutlineOutlinedIcon fontSize="small" />
+                      </button>
+                    </div>
+
+                    <div className="report-meta-row">
+                      <span>
+                        <CalendarTodayOutlinedIcon style={{ fontSize: 14 }} />
+                        Kỳ: {new Date(report.reportStartDate).toLocaleDateString('vi-VN')} - {new Date(report.reportEndDate).toLocaleDateString('vi-VN')}
+                      </span>
+                      <span>Người lập: <strong>{report.authorName}</strong></span>
+                    </div>
+
+                    <div className="report-snapshot-bar">
+                      <div className="snap-item">
+                        <span>Tiến độ lúc lập</span>
+                        <strong>{report.completionRateSnapshot}%</strong>
+                      </div>
+                      <div className="snap-item">
+                        <span>Hoàn thành</span>
+                        <strong>{report.completedTasksSnapshot}/{report.totalTasksSnapshot} task</strong>
+                      </div>
+                      <div className="snap-item">
+                        <span>Quá hạn</span>
+                        <strong style={{ color: report.overdueTasksSnapshot > 0 ? '#ef4444' : '#0f172a' }}>
+                          {report.overdueTasksSnapshot} task
+                        </strong>
+                      </div>
+                    </div>
+
+                    <div className="report-section">
+                      <strong>Kết quả đạt được trong kỳ:</strong>
+                      <p>{report.keyAccomplishments}</p>
+                    </div>
+
+                    {report.upcomingPlan && (
+                      <div className="report-section">
+                        <strong>Kế hoạch kỳ tiếp theo:</strong>
+                        <p>{report.upcomingPlan}</p>
+                      </div>
+                    )}
+
+                    {report.risksAndBlockers && (
+                      <div className="report-section risk-box">
+                        <strong>Rủi ro & Vướng mắc cần tháo gỡ:</strong>
+                        <p>{report.risksAndBlockers}</p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -512,6 +792,114 @@ export default function ProjectDetail() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {showReportModal && (
+          <div className="modal-backdrop">
+            <div className="modal-card">
+              <h2>Lập Báo Cáo Trạng Thái & Sức Khỏe Dự Án</h2>
+              <p>Ghi nhận đánh giá R/A/G và tự động lưu snapshot số liệu tiến độ hiện tại</p>
+
+              {reportError && (
+                <div className="alert-error">
+                  <ErrorOutlineOutlinedIcon fontSize="small" />
+                  <span>{reportError}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleCreateReport}>
+                <div className="form-group">
+                  <label>Tiêu đề kỳ báo cáo *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ví dụ: Báo cáo tiến độ Sprint 3 - Tuần 1 Tháng 11"
+                    value={newReport.title}
+                    onChange={(e) => setNewReport({ ...newReport, title: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Từ ngày *</label>
+                    <input
+                      type="date"
+                      required
+                      value={newReport.reportStartDate}
+                      onChange={(e) => {
+                        setNeedsOutOfRangeConfirm(false);
+                        setReportError('');
+                        setNewReport({ ...newReport, reportStartDate: e.target.value });
+                      }}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Đến ngày *</label>
+                    <input
+                      type="date"
+                      required
+                      value={newReport.reportEndDate}
+                      onChange={(e) => {
+                        setNeedsOutOfRangeConfirm(false);
+                        setReportError('');
+                        setNewReport({ ...newReport, reportEndDate: e.target.value });
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Đánh giá sức khỏe dự án (R/A/G Rating)</label>
+                  <select
+                    value={newReport.healthRating}
+                    onChange={(e) => setNewReport({ ...newReport, healthRating: parseInt(e.target.value) })}
+                  >
+                    <option value={1}>Xanh - Đúng tiến độ (On Track)</option>
+                    <option value={2}>Vàng - Có rủi ro cần lưu ý (At Risk)</option>
+                    <option value={3}>Đỏ - Chậm tiến độ / Nguy cấp (Delayed)</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Kết quả đạt được trong kỳ *</label>
+                  <textarea
+                    rows={3}
+                    required
+                    placeholder="Các hạng mục, tính năng hoặc mục tiêu đã hoàn thành..."
+                    value={newReport.keyAccomplishments}
+                    onChange={(e) => setNewReport({ ...newReport, keyAccomplishments: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Kế hoạch trọng tâm kỳ tiếp theo</label>
+                  <textarea
+                    rows={2}
+                    placeholder="Các đầu việc ưu tiên triển khai trong tuần tới..."
+                    value={newReport.upcomingPlan}
+                    onChange={(e) => setNewReport({ ...newReport, upcomingPlan: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Rủi ro & Vướng mắc (Risks / Blockers)</label>
+                  <textarea
+                    rows={2}
+                    placeholder="Các vấn đề kỹ thuật, nhân sự hoặc phụ thuộc cần hỗ trợ..."
+                    value={newReport.risksAndBlockers}
+                    onChange={(e) => setNewReport({ ...newReport, risksAndBlockers: e.target.value })}
+                  />
+                </div>
+
+                <div className="modal-actions">
+                  <button type="button" onClick={() => setShowReportModal(false)} className="btn-secondary">Hủy</button>
+                  <button type="submit" className="btn-primary">
+                    {needsOutOfRangeConfirm ? 'Xác Nhận Lưu (Bỏ Qua Cảnh Báo)' : 'Lưu Báo Cáo'}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}
