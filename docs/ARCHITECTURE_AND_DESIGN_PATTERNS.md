@@ -409,3 +409,29 @@ frontend/src/assets/styles/
   - **OpenAPI v3 Specification**: Tự động phân tích các Controller (Auth, Projects, Tasks, StatusReports, MeetingNotes) và sinh cấu trúc lược đồ request/response tại /swagger/v1/swagger.json và /openapi/v1.json.
   - **Giao diện Swagger UI tương tác (/swagger)**: Cung cấp tài liệu trực quan, liệt kê đầy đủ 18 endpoints cùng tham số, mã lỗi HTTP (200 OK, 201 Created, 400 BadRequest, 401 Unauthorized, 404 NotFound).
   - **Xác thực JWT Bearer tương tác (Nút Authorize)**: Tự động phát hiện cơ chế bảo vệ [Authorize] trên các Controller qua InferSecuritySchemes(), cho phép nhập chuỗi JWT Token để kiểm thử trực tiếp các API bảo mật trên trình duyệt mà không cần sử dụng phần mềm ngoài như Postman.
+
+
+---
+
+## 20. Trợ Lý AI Gợi Ý (Gemini) Theo Dữ Liệu Dự Án
+
+### 20.1. Thiết kế theo Clean Architecture
+- `IAiTextGenerator` (tầng Application) là cổng giao tiếp với mô hình ngôn ngữ; `GeminiTextGenerator` (tầng Infrastructure) gọi Gemini API qua `HttpClient`. Đổi nhà cung cấp AI chỉ cần viết lớp mới cài `IAiTextGenerator`, không sửa nghiệp vụ.
+- `AiAssistantService` tự dựng prompt từ dữ liệu thật của dự án (số liệu tiến độ, công việc quá hạn, điểm sức khỏe R/A/G từ `StatusReportService`), không để AI tự bịa số liệu.
+- Lỗi từ dịch vụ AI được gói thành `AiUnavailableException`, Controller trả về `503` kèm thông báo tiếng Việt thay vì làm sập request.
+
+### 20.2. Ba chức năng
+| Endpoint | Chức năng | Cần khóa API |
+| :--- | :--- | :--- |
+| `POST /api/ai/projects/{projectId}/insight` | Nhận xét tình hình dự án: đánh giá chung, rủi ro chính, việc nên làm ngay | Có |
+| `POST /api/ai/tasks/{taskId}/subtask-suggestions` | Đề xuất danh sách việc con cho một công việc, loại trùng với việc con đã có | Có |
+| `GET /api/ai/tasks/{taskId}/assignee-suggestions` | Xếp hạng thành viên theo khối lượng việc đang mở (số việc, tổng giờ ước lượng), người ít việc nhất được đề xuất đầu tiên | Không |
+
+Gợi ý người nhận việc dùng thuật toán cân bằng tải thuần, không phụ thuộc AI nên luôn hoạt động.
+
+### 20.3. Cấu hình khóa API
+Khóa không được lưu trong mã nguồn. Đặt một trong hai cách:
+- Biến môi trường: `Gemini__ApiKey=<khóa>`.
+- File `appsettings.Development.json` (đã nằm trong `.gitignore`), mục `Gemini:ApiKey`.
+
+Mô hình mặc định là `gemini-2.5-flash`, đổi qua mục `Gemini:Model`.
