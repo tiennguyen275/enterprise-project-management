@@ -16,3 +16,10 @@ public enum ProjectRole
     Member = 3,
     Viewer = 4
 }
+
+public enum ProjectHealthRating
+{
+    OnTrack = 1,
+    AtRisk = 2,
+    Delayed = 3
+}
