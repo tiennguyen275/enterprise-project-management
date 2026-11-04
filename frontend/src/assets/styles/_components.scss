@@ -1,9 +1,5 @@
-// ==========================================
-// 3. REUSABLE UI COMPONENTS
-// ==========================================
 @use './variables' as *;
 
-// --- Buttons ---
 .btn-primary {
   background: $primary !important;
   color: #ffffff !important;
@@ -59,7 +55,6 @@
   }
 }
 
-// --- Forms & Inputs ---
 .form-group {
   display: flex;
   flex-direction: column;
@@ -132,7 +127,6 @@
   }
 }
 
-// --- Alerts ---
 .alert-error {
   background: $danger-bg !important;
   color: $danger-text !important;
@@ -161,7 +155,6 @@
   margin-bottom: 1.25rem;
 }
 
-// --- Badges ---
 .badge-code, .task-code {
   display: inline-flex;
   align-items: center;
@@ -211,7 +204,6 @@
   }
 }
 
-// --- Modal Dialogs (Support both .modal-backdrop and .modal-overlay) ---
 .modal-backdrop, .modal-overlay {
   position: fixed;
   inset: 0;
@@ -259,7 +251,6 @@
   }
 }
 
-// --- Loading & Empty states ---
 .loading-state {
   text-align: center;
   padding: 4rem 2rem;

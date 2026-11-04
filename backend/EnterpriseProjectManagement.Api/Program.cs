@@ -8,17 +8,12 @@ using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 
-// Đăng ký Application Services (AuthService, Business logic)
 builder.Services.AddApplicationServices();
-
-// Đăng ký Infrastructure (EF Core, DbContext, Repository, UnitOfWork, JWT Token Generator)
 builder.Services.AddInfrastructureServices(builder.Configuration);
 
-// Cấu hình JWT Authentication
 var secret = builder.Configuration["JwtSettings:Secret"] ?? "EnterpriseProjectManagementSuperSecretKey2026!@#$%";
 var issuer = builder.Configuration["JwtSettings:Issuer"] ?? "EnterpriseProjectManagement";
 var audience = builder.Configuration["JwtSettings:Audience"] ?? "EnterpriseProjectManagement";
@@ -44,7 +39,6 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization();
 
-// Cấu hình CORS để Frontend ReactJS có thể gọi API
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReactApp", policy =>
@@ -58,26 +52,22 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Tự động kiểm tra và tạo Database/Tables nếu chưa có (Auto-Migrate khi khởi động)
+// Khởi tạo schema CSDL tự động nếu database chưa tồn tại
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     dbContext.Database.EnsureCreated();
 }
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
 
 app.UseHttpsRedirection();
-
 app.UseCors("AllowReactApp");
-
 app.UseAuthentication();
 app.UseAuthorization();
-
 app.MapControllers();
 
 app.Run();

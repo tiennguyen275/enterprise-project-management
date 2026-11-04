@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import Navbar from '../components/Navbar';
-
-// MUI Icons
 import FolderSpecialOutlinedIcon from '@mui/icons-material/FolderSpecialOutlined';
 import CheckCircleOutlineOutlinedIcon from '@mui/icons-material/CheckCircleOutlineOutlined';
 import AddIcon from '@mui/icons-material/Add';
@@ -18,20 +16,21 @@ export default function Dashboard() {
   const [newProject, setNewProject] = useState({ name: '', code: '', description: '' });
   const [createError, setCreateError] = useState('');
 
-  const fetchProjects = async () => {
-    try {
-      setLoading(true);
-      const res = await api.get('/projects');
-      setProjects(res.data);
-    } catch (err) {
-      console.error('Lỗi tải danh sách dự án:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchProjects();
+    let isMounted = true;
+    api.get('/projects')
+      .then((res) => {
+        if (isMounted) setProjects(res.data);
+      })
+      .catch((err) => {
+        console.error('Lỗi tải danh sách dự án:', err);
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const handleCreateProject = async (e) => {
@@ -49,10 +48,8 @@ export default function Dashboard() {
 
   return (
     <div className="dashboard-layout">
-      {/* Header */}
       <Navbar />
 
-      {/* Main Content */}
       <main className="main-content">
         <div className="content-header">
           <div>
@@ -65,7 +62,6 @@ export default function Dashboard() {
           </button>
         </div>
 
-        {/* Project Cards Grid */}
         {loading ? (
           <div className="loading-state">Đang tải dữ liệu dự án...</div>
         ) : projects.length === 0 ? (
@@ -129,7 +125,6 @@ export default function Dashboard() {
         )}
       </main>
 
-      {/* Modal Tạo Dự Án Mới */}
       {showCreateModal && (
         <div className="modal-backdrop">
           <div className="modal-card">
