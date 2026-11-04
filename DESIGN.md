@@ -100,3 +100,4 @@ Trước khi hoàn thành bất kỳ tính năng Frontend nào, AI Agent bắt b
 - [ ] **Overflow Hardening:** Nếu tên dự án hoặc tiêu đề công việc dài 120 ký tự, bố cục có bị vỡ hay đã có `line-clamp`?
 - [ ] **Interactive Polish:** Các nút bấm, thẻ card và ô nhập liệu đã có hiệu ứng `:hover` và `:focus-visible` mượt mà chưa?
 - [ ] **Zero-State Readiness:** Khi danh sách rỗng, giao diện có hiển thị khung Empty State thân thiện kèm hướng dẫn không?
+

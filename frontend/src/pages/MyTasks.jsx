@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import Navbar from '../components/Navbar';
-
-// MUI Icons
 import AssignmentOutlinedIcon from '@mui/icons-material/AssignmentOutlined';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import CheckCircleOutlineOutlinedIcon from '@mui/icons-material/CheckCircleOutlineOutlined';
@@ -23,28 +21,28 @@ const STATUS_OPTIONS = [
 export default function MyTasks() {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filterTab, setFilterTab] = useState('all'); // all | today | overdue | in_progress | completed
+  const [filterTab, setFilterTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProject, setSelectedProject] = useState('all');
-
-  // Task detail & discussion modal
   const [selectedTask, setSelectedTask] = useState(null);
   const [commentText, setCommentText] = useState('');
-
-  const fetchMyTasks = async () => {
-    try {
-      setLoading(true);
-      const res = await api.get('/tasks/my-tasks');
-      setTasks(res.data);
-    } catch (err) {
-      console.error('Lỗi tải công việc cá nhân:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [todayStr] = useState(() => new Date().toISOString().substring(0, 10));
 
   useEffect(() => {
-    fetchMyTasks();
+    let isMounted = true;
+    api.get('/tasks/my-tasks')
+      .then((res) => {
+        if (isMounted) setTasks(res.data);
+      })
+      .catch((err) => {
+        console.error('Lỗi tải công việc cá nhân:', err);
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const handleUpdateStatus = async (taskId, newStatus) => {
@@ -65,6 +63,7 @@ export default function MyTasks() {
 
       setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
     } catch (err) {
+      console.error('Lỗi cập nhật trạng thái:', err);
       alert('Không thể cập nhật trạng thái công việc.');
     }
   };
@@ -88,29 +87,24 @@ export default function MyTasks() {
         comments: [...prev.comments, res.data]
       }));
       setCommentText('');
-      // Cập nhật lại số lượng comment trên danh sách
       setTasks(prev => prev.map(t => t.id === selectedTask.id ? { ...t, commentCount: t.commentCount + 1 } : t));
     } catch (err) {
+      console.error('Lỗi gửi bình luận:', err);
       alert('Không thể gửi bình luận.');
     }
   };
 
-  // KPIs
-  const todayStr = new Date().toISOString().substring(0, 10);
   const totalCount = tasks.length;
   const overdueCount = tasks.filter(t => t.isOverdue).length;
   const todayCount = tasks.filter(t => t.dueDate && t.dueDate.substring(0, 10) === todayStr && t.status !== 4).length;
   const inProgressCount = tasks.filter(t => t.status === 2).length;
   const completedCount = tasks.filter(t => t.status === 4).length;
 
-  // Lấy danh sách dự án duy nhất để lọc
   const uniqueProjects = Array.from(
     new Map(tasks.map(t => [t.projectId, { id: t.projectId, name: t.projectName, code: t.projectCode }])).values()
   );
 
-  // Lọc dữ liệu
   const filteredTasks = tasks.filter(task => {
-    // Lọc theo tab
     if (filterTab === 'today') {
       if (!task.dueDate || task.dueDate.substring(0, 10) !== todayStr || task.status === 4) return false;
     } else if (filterTab === 'overdue') {
@@ -121,12 +115,10 @@ export default function MyTasks() {
       if (task.status !== 4) return false;
     }
 
-    // Lọc theo dự án
     if (selectedProject !== 'all' && task.projectId !== selectedProject) {
       return false;
     }
 
-    // Lọc theo tìm kiếm
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       const matchTitle = task.title.toLowerCase().includes(q);
@@ -140,11 +132,9 @@ export default function MyTasks() {
 
   return (
     <div className="my-tasks-layout">
-      {/* Navbar chung */}
       <Navbar />
 
       <main className="main-content">
-        {/* Content Header */}
         <div className="content-header">
           <div>
             <h1>Không Gian Cá Nhân (My Tasks)</h1>
@@ -152,7 +142,6 @@ export default function MyTasks() {
           </div>
         </div>
 
-        {/* KPI Stats Cards */}
         <div className="my-tasks-kpi-grid">
           <div className="kpi-card">
             <div className="kpi-icon icon-blue">
@@ -195,7 +184,6 @@ export default function MyTasks() {
           </div>
         </div>
 
-        {/* Filter Toolbar */}
         <div className="my-tasks-toolbar">
           <div className="filter-tabs">
             <button 
@@ -256,7 +244,6 @@ export default function MyTasks() {
           </div>
         </div>
 
-        {/* Task List Table / Cards */}
         {loading ? (
           <div className="loading-state">Đang tải danh sách công việc cá nhân...</div>
         ) : filteredTasks.length === 0 ? (
@@ -330,7 +317,6 @@ export default function MyTasks() {
         )}
       </main>
 
-      {/* Modal Chi tiết Task & Thảo luận */}
       {selectedTask && (
         <div className="modal-backdrop">
           <div className="modal-card task-detail-modal">

@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../services/api';
 import Navbar from '../components/Navbar';
-
-// MUI Icons
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import AddIcon from '@mui/icons-material/Add';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
@@ -29,18 +27,16 @@ const COLUMNS = [
 export default function ProjectDetail() {
   const { id } = useParams();
 
-  const [activeTab, setActiveTab] = useState('kanban'); // 'kanban' | 'analytics' | 'notes'
+  const [activeTab, setActiveTab] = useState('kanban');
   const [project, setProject] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [analytics, setAnalytics] = useState(null);
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Drag and Drop state
   const [draggedTaskId, setDraggedTaskId] = useState(null);
   const [dragOverColId, setDragOverColId] = useState(null);
 
-  // Modal tạo công việc
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [newTask, setNewTask] = useState({
     title: '',
@@ -51,23 +47,20 @@ export default function ProjectDetail() {
     assigneeId: ''
   });
 
-  // Modal mời thành viên
   const [showMemberModal, setShowMemberModal] = useState(false);
   const [memberEmail, setMemberEmail] = useState('');
   const [memberRole, setMemberRole] = useState(3);
   const [memberError, setMemberError] = useState('');
 
-  // Modal tạo biên bản cuộc họp
   const [showNoteModal, setShowNoteModal] = useState(false);
-  const [newNote, setNewNote] = useState({
+  const [newNote, setNewNote] = useState(() => ({
     title: '',
     meetingDate: new Date().toISOString().substring(0, 10),
     attendees: '',
     content: '',
     actionItems: ''
-  });
+  }));
 
-  // Modal chi tiết & bình luận task
   const [selectedTask, setSelectedTask] = useState(null);
   const [commentText, setCommentText] = useState('');
 
@@ -92,7 +85,30 @@ export default function ProjectDetail() {
   };
 
   useEffect(() => {
-    fetchProjectData();
+    let isMounted = true;
+    Promise.all([
+      api.get(`/projects/${id}`),
+      api.get(`/tasks/project/${id}`),
+      api.get(`/projects/${id}/analytics`),
+      api.get(`/meetingnotes/project/${id}`)
+    ])
+      .then(([projRes, tasksRes, analyticsRes, notesRes]) => {
+        if (isMounted) {
+          setProject(projRes.data);
+          setTasks(tasksRes.data);
+          setAnalytics(analyticsRes.data);
+          setNotes(notesRes.data);
+        }
+      })
+      .catch((err) => {
+        console.error('Lỗi tải dữ liệu dự án:', err);
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+    return () => {
+      isMounted = false;
+    };
   }, [id]);
 
   const handleCreateTask = async (e) => {
@@ -138,7 +154,6 @@ export default function ProjectDetail() {
     }
   };
 
-  // Drag and Drop Handlers
   const handleDragStart = (e, taskId) => {
     setDraggedTaskId(taskId);
     e.dataTransfer.setData('text/plain', taskId);
@@ -214,6 +229,7 @@ export default function ProjectDetail() {
       await api.delete(`/meetingnotes/${noteId}`);
       setNotes(prev => prev.filter(n => n.id !== noteId));
     } catch (err) {
+      console.error('Lỗi xóa biên bản:', err);
       alert('Không thể xóa biên bản.');
     }
   };
@@ -238,6 +254,7 @@ export default function ProjectDetail() {
       }));
       setCommentText('');
     } catch (err) {
+      console.error('Lỗi gửi bình luận:', err);
       alert('Không thể gửi bình luận.');
     }
   };
@@ -258,11 +275,9 @@ export default function ProjectDetail() {
 
   return (
     <div>
-      {/* Top Navigation */}
       <Navbar />
 
       <div className="project-detail-layout">
-        {/* Top Header */}
         <div className="project-header">
           <div className="header-left">
             <Link to="/" className="btn-back">
@@ -287,7 +302,6 @@ export default function ProjectDetail() {
           </div>
         </div>
 
-        {/* Tabs Switcher: Kanban vs Analytics vs Meeting Notes */}
         <div className="tabs-bar">
           <button 
             className={`tab-btn ${activeTab === 'kanban' ? 'active' : ''}`}
@@ -312,7 +326,6 @@ export default function ProjectDetail() {
           </button>
         </div>
 
-        {/* Tab 1: Kanban Board với tính năng Kéo Thả (Drag and Drop) */}
         {activeTab === 'kanban' && (
           <div className="kanban-board">
             {COLUMNS.map(col => {
@@ -392,7 +405,6 @@ export default function ProjectDetail() {
           </div>
         )}
 
-        {/* Tab 2: Meeting Notes */}
         {activeTab === 'notes' && (
           <div className="notes-layout">
             <div className="notes-header">
@@ -446,7 +458,6 @@ export default function ProjectDetail() {
           </div>
         )}
 
-        {/* Tab 3: Analytics & Workload Distribution */}
         {activeTab === 'analytics' && analytics && (
           <div className="analytics-layout">
             <div className="stats-cards-grid">
@@ -505,7 +516,6 @@ export default function ProjectDetail() {
           </div>
         )}
 
-        {/* Modal Mời Thành Viên */}
         {showMemberModal && (
           <div className="modal-backdrop">
             <div className="modal-card">
@@ -552,7 +562,6 @@ export default function ProjectDetail() {
           </div>
         )}
 
-        {/* Modal Thêm Task (Có lựa chọn Người Thực Hiện) */}
         {showTaskModal && (
           <div className="modal-backdrop">
             <div className="modal-card">
@@ -626,7 +635,75 @@ export default function ProjectDetail() {
           </div>
         )}
 
-        {/* Modal Chi tiết Task & Thảo luận */}
+        {showNoteModal && (
+          <div className="modal-backdrop">
+            <div className="modal-card">
+              <h2>Ghi Biên Bản Cuộc Họp</h2>
+              <p>Lưu lại nội dung trao đổi, kết luận và phân công sau buổi họp</p>
+
+              <form onSubmit={handleCreateNote}>
+                <div className="form-group">
+                  <label>Chủ đề cuộc họp *</label>
+                  <input 
+                    type="text" 
+                    required 
+                    placeholder="Ví dụ: Họp Sprint Review tuần 42"
+                    value={newNote.title}
+                    onChange={(e) => setNewNote({ ...newNote, title: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Ngày họp</label>
+                    <input 
+                      type="date" 
+                      required
+                      value={newNote.meetingDate}
+                      onChange={(e) => setNewNote({ ...newNote, meetingDate: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Người tham dự</label>
+                    <input 
+                      type="text" 
+                      placeholder="Tiến, Minh, Hương..."
+                      value={newNote.attendees}
+                      onChange={(e) => setNewNote({ ...newNote, attendees: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Nội dung thảo luận & Quyết định *</label>
+                  <textarea 
+                    rows={4} 
+                    required
+                    placeholder="Tóm tắt các vấn đề đã bàn bạc và thống nhất..."
+                    value={newNote.content}
+                    onChange={(e) => setNewNote({ ...newNote, content: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Hạng mục hành động (Action Items)</label>
+                  <textarea 
+                    rows={2} 
+                    placeholder="Ai làm gì, deadline khi nào..."
+                    value={newNote.actionItems}
+                    onChange={(e) => setNewNote({ ...newNote, actionItems: e.target.value })}
+                  />
+                </div>
+
+                <div className="modal-actions">
+                  <button type="button" onClick={() => setShowNoteModal(false)} className="btn-secondary">Hủy</button>
+                  <button type="submit" className="btn-primary">Lưu Biên Bản</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
         {selectedTask && (
           <div className="modal-backdrop">
             <div className="modal-card task-detail-modal">

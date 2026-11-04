@@ -1,6 +1,5 @@
 import axios from 'axios';
 
-// Backend .NET Core đang chạy tại port 5164
 const api = axios.create({
   baseURL: 'http://localhost:5164/api',
   headers: {
@@ -8,7 +7,6 @@ const api = axios.create({
   },
 });
 
-// Interceptor tự động gắn Bearer Token vào mọi request
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
@@ -20,7 +18,6 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Interceptor bắt lỗi 401 Unauthorized (hết hạn token)
 api.interceptors.response.use(
   (response) => response,
   (error) => {
