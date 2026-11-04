@@ -1,4 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { createProjectHubConnection } from '../services/signalr';
+import ForumOutlinedIcon from '@mui/icons-material/ForumOutlined';
+import AutoAwesomeOutlinedIcon from '@mui/icons-material/AutoAwesomeOutlined';
+import SendOutlinedIcon from '@mui/icons-material/SendOutlined';
 import { useParams, Link } from 'react-router-dom';
 import api from '../services/api';
 import Navbar from '../components/Navbar';
@@ -114,6 +119,13 @@ export default function ProjectDetail() {
   const [suggestionLoading, setSuggestionLoading] = useState(false);
   const [suggestionError, setSuggestionError] = useState('');
   const [assigneeSuggestions, setAssigneeSuggestions] = useState([]);
+  const { user: currentUser } = useAuth();
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatLoading, setChatLoading] = useState(true);
+  const [chatInput, setChatInput] = useState('');
+  const [chatSending, setChatSending] = useState(false);
+  const [signalRConnected, setSignalRConnected] = useState(false);
+  const chatBottomRef = useRef(null);
 
   const fetchProjectData = async () => {
     try {
@@ -141,6 +153,96 @@ export default function ProjectDetail() {
       setLoading(false);
     }
   };
+
+  const handleSendMessage = async (e, forceAskAi = false, directText = null) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const textToSend = directText || chatInput;
+    if (!textToSend || !textToSend.trim() || chatSending) return;
+
+    if (!directText) {
+      setChatInput('');
+    }
+    setChatSending(true);
+    try {
+      const res = await api.post(`/projects/${id}/messages`, {
+        content: textToSend.trim(),
+        askAi: forceAskAi || textToSend.includes('@ai') || textToSend.startsWith('/ai'),
+      });
+      if (res.data) {
+        setChatMessages((prev) => {
+          if (prev.some((m) => m.id === res.data.id)) return prev;
+          return [...prev, res.data];
+        });
+      }
+    } catch (err) {
+      console.error('Loi gui tin nhan:', err);
+    } finally {
+      setChatSending(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!id) return;
+
+    api.get(`/projects/${id}/messages`)
+      .then((res) => {
+        setChatMessages(res.data || []);
+      })
+      .catch((err) => {
+        console.error('Loi tai tin nhan du an:', err);
+      })
+      .finally(() => {
+        setChatLoading(false);
+      });
+
+    const hub = createProjectHubConnection(id, {
+      onProjectMessage: (message) => {
+        setChatMessages((prev) => {
+          if (prev.some((m) => m.id === message.id)) return prev;
+          return [...prev, message];
+        });
+      },
+      onTaskUpdate: ({ task, action }) => {
+        if (!task || task.parentTaskId) return;
+        if (action === 'deleted') {
+          setTasks((prev) => prev.filter((t) => t.id !== task.id));
+          setSelectedTask((prev) => (prev && prev.id === task.id ? null : prev));
+          return;
+        }
+        if (action === 'created') {
+          setTasks((prev) => {
+            if (prev.some((t) => t.id === task.id)) return prev;
+            return [task, ...prev];
+          });
+        } else {
+          setTasks((prev) => {
+            const exists = prev.some((t) => t.id === task.id);
+            if (!exists) return [task, ...prev];
+            return prev.map((t) => (t.id === task.id ? { ...t, ...task } : t));
+          });
+        }
+        setSelectedTask((prev) => (prev && prev.id === task.id ? { ...prev, ...task } : prev));
+      },
+      onProjectDataChanged: () => {
+        api.get(`/tasks/project/${id}`)
+          .then((res) => setTasks(res.data))
+          .catch(() => {});
+      },
+      onConnectionChange: (connected) => {
+        setSignalRConnected(connected);
+      },
+    });
+
+    return () => {
+      hub.stop();
+    };
+  }, [id]);
+
+  useEffect(() => {
+    if (activeTab === 'chat') {
+      chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [chatMessages, activeTab]);
 
   const fetchHealthOverview = async (start, end) => {
     try {
@@ -609,6 +711,10 @@ export default function ProjectDetail() {
             <p className="project-desc">{project.description}</p>
           </div>
           <div className="header-right header-actions">
+            <div className="realtime-status-pill">
+              <span className="pulse-dot" />
+              <span>SignalR: {signalRConnected ? 'Trực tuyến' : 'Đang kết nối...'}</span>
+            </div>
             <button onClick={() => setShowMemberModal(true)} className="btn-secondary">
               <PersonAddAlt1OutlinedIcon fontSize="small" />
               <span>Mời Thành Viên ({project.members?.length || 1})</span>
@@ -627,6 +733,13 @@ export default function ProjectDetail() {
           >
             <ViewKanbanOutlinedIcon fontSize="small" />
             <span>Bảng Kanban (Kéo Thả)</span>
+          </button>
+          <button 
+            className={`tab-btn ${activeTab === 'chat' ? 'active' : ''}`}
+            onClick={() => setActiveTab('chat')}
+          >
+            <ForumOutlinedIcon fontSize="small" />
+            <span>Trao Đổi & Trợ Lý AI {chatMessages.length > 0 ? `(${chatMessages.length})` : ''}</span>
           </button>
           <button 
             className={`tab-btn ${activeTab === 'status-reports' ? 'active' : ''}`}
@@ -1049,6 +1162,134 @@ export default function ProjectDetail() {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {activeTab === 'chat' && (
+          <div className="project-chat-wrapper">
+            <div className="chat-header">
+              <div className="chat-header-title">
+                <ForumOutlinedIcon style={{ color: '#4f46e5' }} />
+                <div>
+                  <h3>Phòng Trao Đổi Dự Án & Trợ Lý AI Gemini</h3>
+                  <p>Trò chuyện thời gian thực qua SignalR và trao đổi thông minh cùng trợ lý AI</p>
+                </div>
+              </div>
+              <div className="realtime-status-pill">
+                <span className="pulse-dot" />
+                <span>{signalRConnected ? 'Kết nối SignalR trực tuyến' : 'Đang kết nối...'}</span>
+              </div>
+            </div>
+
+            <div className="chat-quick-actions">
+              <span className="quick-title">Gợi ý câu hỏi AI:</span>
+              <button
+                type="button"
+                className="quick-pill"
+                onClick={() => handleSendMessage(null, true, '@ai Tóm tắt tiến độ hiện tại và các điểm nghẽn chính')}
+              >
+                <AutoAwesomeOutlinedIcon style={{ fontSize: 13 }} />
+                <span>@ai Tóm tắt tiến độ</span>
+              </button>
+              <button
+                type="button"
+                className="quick-pill"
+                onClick={() => handleSendMessage(null, true, '@ai Rủi ro lớn nhất và giải pháp khắc phục là gì?')}
+              >
+                <AutoAwesomeOutlinedIcon style={{ fontSize: 13 }} />
+                <span>@ai Phân tích rủi ro</span>
+              </button>
+              <button
+                type="button"
+                className="quick-pill"
+                onClick={() => handleSendMessage(null, true, '@ai Đề xuất phân công và giải pháp tăng tốc dự án')}
+              >
+                <AutoAwesomeOutlinedIcon style={{ fontSize: 13 }} />
+                <span>@ai Gợi ý tăng tốc</span>
+              </button>
+            </div>
+
+            <div className="chat-messages-scroll">
+              {chatLoading ? (
+                <p style={{ textAlign: 'center', color: '#64748b', margin: '2rem 0' }}>Đang tải lịch sử trao đổi...</p>
+              ) : chatMessages.length === 0 ? (
+                <div className="empty-chat">
+                  <ForumOutlinedIcon style={{ fontSize: 48 }} />
+                  <h4>Chưa có trao đổi nào trong dự án</h4>
+                  <p>Gửi tin nhắn đầu tiên để cùng thảo luận, hoặc bấm "Hỏi AI" để nhận tư vấn dự án từ Gemini!</p>
+                </div>
+              ) : (
+                chatMessages.map((m) => {
+                  const isSelf = currentUser && m.senderId === currentUser.id;
+                  const rowClass = m.isAiGenerated
+                    ? 'ai-message'
+                    : isSelf
+                    ? 'self-message'
+                    : 'user-message';
+
+                  return (
+                    <div key={m.id} className={`chat-bubble-row ${rowClass}`}>
+                      <div className="avatar-box">
+                        {m.isAiGenerated ? (
+                          <AutoAwesomeOutlinedIcon style={{ fontSize: 18 }} />
+                        ) : (
+                          (m.senderName || 'U').substring(0, 2).toUpperCase()
+                        )}
+                      </div>
+                      <div className="bubble-body">
+                        <div className="sender-meta">
+                          <span>{m.senderName}</span>
+                          {m.isAiGenerated && (
+                            <span className="ai-badge">
+                              <AutoAwesomeOutlinedIcon style={{ fontSize: 11 }} /> AI Assistant
+                            </span>
+                          )}
+                          <span className="time-label">
+                            {new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        <div className="message-text">{m.content}</div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+              <div ref={chatBottomRef} />
+            </div>
+
+            <div className="chat-composer-area">
+              <form
+                className="composer-form"
+                onSubmit={(e) => handleSendMessage(e, false)}
+              >
+                <input
+                  type="text"
+                  className="chat-input"
+                  placeholder="Nhập tin nhắn thảo luận (gõ @ai để hỏi trợ lý Gemini)..."
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  disabled={chatSending}
+                />
+                <button
+                  type="button"
+                  className="btn-ask-ai"
+                  disabled={chatSending || !chatInput.trim()}
+                  onClick={(e) => handleSendMessage(e, true)}
+                  title="Gửi kèm yêu cầu Trợ lý AI phân tích"
+                >
+                  <AutoAwesomeOutlinedIcon style={{ fontSize: 15 }} />
+                  <span>Hỏi AI</span>
+                </button>
+                <button
+                  type="submit"
+                  className="btn-send-message"
+                  disabled={chatSending || !chatInput.trim()}
+                >
+                  <SendOutlinedIcon style={{ fontSize: 16 }} />
+                  <span>{chatSending ? 'Đang gửi...' : 'Gửi'}</span>
+                </button>
+              </form>
+            </div>
           </div>
         )}
 
