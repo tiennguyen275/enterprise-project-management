@@ -1,4 +1,4 @@
-﻿# KIẾN TRÚC HỆ THỐNG VÀ NGUYÊN LÝ THIẾT KẾ (SOLID & DESIGN PATTERNS)
+# KIẾN TRÚC HỆ THỐNG VÀ NGUYÊN LÝ THIẾT KẾ (SOLID & DESIGN PATTERNS)
 
 Tài liệu này được biên soạn dành cho bạn đọc hiểu tường tận toàn bộ kiến trúc dự án để tự tin báo cáo và phản biện trước hội đồng chấm đồ án tốt nghiệp.
 
@@ -435,3 +435,23 @@ Khóa không được lưu trong mã nguồn. Đặt một trong hai cách:
 - File `appsettings.Development.json` (đã nằm trong `.gitignore`), mục `Gemini:ApiKey`.
 
 Mô hình mặc định là `gemini-2.5-flash`, đổi qua mục `Gemini:Model`.
+
+---
+
+## 21. Giao Tiếp Thời Gian Thực (SignalR) & Phòng Trao Đổi Dự Án Tích Hợp AI
+
+### 21.1. Kiến trúc SignalR Hub & Nguyên lý Nghịch đảo Phụ thuộc (DIP)
+- **Tầng Application**: Định nghĩa abstraction `IRealtimeNotificationService` với các phương thức phát sự kiện nghiệp vụ (`NotifyProjectMessageReceivedAsync`, `NotifyTaskUpdatedAsync`, `NotifyProjectDataChangedAsync`). Các nghiệp vụ như Task hoặc Chat chỉ phụ thuộc vào interface này mà không biết đến SignalR hay WebSocket.
+- **Tầng API**: Cài đặt `ProjectHub` kế thừa từ `Microsoft.AspNetCore.SignalR.Hub` với xác thực `[Authorize]`. Cài đặt `SignalRRealtimeNotificationService` sử dụng `IHubContext<ProjectHub>` để gửi thông điệp tới đúng nhóm dự án (`Clients.Group(projectId)`).
+- **Phân nhóm (SignalR Groups)**: Mỗi dự án là một SignalR Group độc lập (`JoinProject`, `LeaveProject`). Thành viên chỉ nhận thông điệp và cập nhật của dự án đang mở, tránh rò rỉ dữ liệu chéo giữa các dự án.
+- **Xác thực WebSocket với JWT Bearer**: Trong giao thức WebSocket chuẩn, trình duyệt không gửi header `Authorization: Bearer <token>`. Hệ thống cấu hình sự kiện `OnMessageReceived` trong `JwtBearerOptions` để đọc `access_token` từ chuỗi truy vấn (query string) khi đường dẫn bắt đầu bằng `/hubs`, đảm bảo mọi kết nối thời gian thực đều được xác thực an toàn.
+
+### 21.2. Phòng Trao Đổi Dự Án & Tương Tác AI In-Room
+- **Lưu trữ bền vững (`ProjectChatMessage`)**: Mọi tin nhắn gửi trong phòng chat dự án đều được lưu vào cơ sở dữ liệu (`ProjectChatMessages`), đảm bảo toàn vẹn lịch sử trao đổi khi người dùng tải lại trang.
+- **Hỏi đáp AI trực tiếp trong phòng chat**:
+  - Khi thành viên gửi tin nhắn có chứa `@ai` hoặc bấm nút "Hỏi AI", hệ thống tự động tổng hợp ngữ cảnh thực tế của dự án (tổng số việc, hoàn thành, quá hạn) và gọi Google Gemini API.
+  - Phản hồi của AI được lưu trữ với định danh `Trợ lý AI Gemini` (`IsAiGenerated = true`) và lập tức phát sóng (broadcast) theo thời gian thực tới tất cả thành viên trong nhóm dự án.
+
+### 21.3. Đồng Bộ Trạng Thái Kanban Thời Gian Thực
+- Khi một người dùng tạo mới công việc, kéo thả chuyển trạng thái hoặc phân công lại người nhận việc, `TasksController` gửi thông báo `ReceiveTaskUpdate` qua SignalR.
+- Giao diện của tất cả các thành viên khác đang theo dõi dự án tự động cập nhật thẻ công việc trên bảng Kanban mà không cần tải lại toàn bộ trang (Zero-Refresh Live Board).

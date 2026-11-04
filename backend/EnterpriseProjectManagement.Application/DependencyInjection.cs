@@ -1,6 +1,7 @@
 using EnterpriseProjectManagement.Application.Features.AiAssistant.Services;
 using EnterpriseProjectManagement.Application.Features.Auth.Services;
 using EnterpriseProjectManagement.Application.Features.MeetingNotes.Services;
+using EnterpriseProjectManagement.Application.Features.ProjectChat.Services;
 using EnterpriseProjectManagement.Application.Features.Projects.Services;
 using EnterpriseProjectManagement.Application.Features.StatusReports.Services;
 using EnterpriseProjectManagement.Application.Features.Tasks.Services;
@@ -18,6 +19,7 @@ public static class DependencyInjection
         services.AddScoped<IMeetingNoteService, MeetingNoteService>();
         services.AddScoped<IStatusReportService, StatusReportService>();
         services.AddScoped<IAiAssistantService, AiAssistantService>();
+        services.AddScoped<IProjectChatService, ProjectChatService>();
         return services;
     }
 }

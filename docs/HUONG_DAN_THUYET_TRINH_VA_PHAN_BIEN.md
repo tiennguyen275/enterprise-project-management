@@ -97,9 +97,9 @@ Tuyệt đối **không click chuột lung tung**. Hãy dẫn dắt người ngh
 | Tầng | Thư mục trong dự án | Trách nhiệm cốt lõi | Các tệp tiêu biểu |
 | :--- | :--- | :--- | :--- |
 | **Domain** | `backend/.../Domain/` | Là "Hiến pháp" của hệ thống. Chứa các thực thể cốt lõi, không chứa bất kỳ logic cơ sở dữ liệu hay thư viện ngoài nào. | `BaseEntity.cs`<br>`User.cs`<br>`Project.cs`<br>`ProjectTask.cs`<br>`ProjectStatusReport.cs` |
-| **Application** | `backend/.../Application/` | Là "Bộ não điều phối nghiệp vụ". Định nghĩa Interface (`IRepository`, `IUnitOfWork`), tạo DTOs, thực thi các tính toán logic và kiểm tra quyền. | `IRepository.cs`<br>`IUnitOfWork.cs`<br>`IAiTextGenerator.cs`<br>`TaskService.cs`<br>`StatusReportService.cs`<br>`AiAssistantService.cs` |
+| **Application** | `backend/.../Application/` | Là "Bộ não điều phối nghiệp vụ". Định nghĩa Interface (`IRepository`, `IUnitOfWork`), tạo DTOs, thực thi các tính toán logic và kiểm tra quyền. | `IRepository.cs`<br>`IUnitOfWork.cs`<br>`IAiTextGenerator.cs`<br>`IRealtimeNotificationService.cs`<br>`TaskService.cs`<br>`StatusReportService.cs`<br>`AiAssistantService.cs`<br>`ProjectChatService.cs` |
 | **Infrastructure** | `backend/.../Infrastructure/` | Là "Công nhân kỹ thuật". Cài đặt EF Core, kết nối SQL Server, cấu hình Soft Delete, Fluent API. Triển khai các Interface của tầng Application. | `ApplicationDbContext.cs`<br>`Repository.cs`<br>`UnitOfWork.cs`<br>`GeminiTextGenerator.cs` |
-| **Api** | `backend/.../Api/` | Là "Nhân viên tiếp tân". Nhận HTTP request từ ReactJS, xác thực JWT qua `[Authorize]`, gọi tầng Application xử lý và trả về JSON. | `Program.cs`<br>`ProjectsController.cs`<br>`TasksController.cs`<br>`StatusReportsController.cs`<br>`AiAssistantController.cs` |
+| **Api** | `backend/.../Api/` | Là "Nhân viên tiếp tân". Nhận HTTP request từ ReactJS, xác thực JWT qua `[Authorize]`, gọi tầng Application xử lý và trả về JSON. | `Program.cs`<br>`ProjectHub.cs`<br>`ProjectsController.cs`<br>`TasksController.cs`<br>`StatusReportsController.cs`<br>`AiAssistantController.cs`<br>`ProjectChatController.cs` |
 
 > **Nguyên tắc vàng Clean Architecture:** Mũi tên phụ thuộc chỉ đi từ ngoài vào trong. Tầng `Domain` và `Application` hoàn toàn không phụ thuộc vào SQL Server hay EF Core. Khi muốn đổi DB sang PostgreSQL hoặc viết Unit Test Mock, ta không cần sửa một dòng code nghiệp vụ nào.
 
@@ -284,6 +284,14 @@ const [projRes, tasksRes, analyticsRes, notesRes, healthRes] = await Promise.all
 
 ### Câu 12: Nếu muốn đổi sang nhà cung cấp AI khác, hoặc khi dịch vụ AI bị lỗi thì sao?
 > **Trả lời:** *"Dạ, đây là ứng dụng của Dependency Inversion. Tầng Application chỉ biết interface `IAiTextGenerator`, còn `GeminiTextGenerator` ở tầng Infrastructure là bản cài đặt cụ thể. Muốn đổi nhà cung cấp, em viết thêm một lớp cài `IAiTextGenerator` rồi đổi một dòng đăng ký DI, không sửa nghiệp vụ. Khi AI lỗi hoặc chưa cấu hình khóa, lớp này ném `AiUnavailableException`, Controller trả về mã `503` kèm thông báo rõ ràng; các chức năng còn lại của hệ thống vẫn chạy bình thường. Khóa API không nằm trong mã nguồn mà đọc từ biến môi trường hoặc file cấu hình cục bộ."*
+
+### Câu 13: Hệ thống trao đổi thời gian thực (Realtime Communication) được thiết kế thế nào? Làm sao đảm bảo các dự án không bị lẫn tin nhắn của nhau?
+> **Trả lời:** *"Dạ, em sử dụng ASP.NET Core SignalR với mô hình Hub-Group:
+> 1. Mỗi dự án tương ứng một SignalR Group độc lập mang định danh `projectId`. Khi người dùng mở trang dự án, client gọi `JoinProject(id)` để gia nhập nhóm và `LeaveProject(id)` khi rời đi. Do đó, tin nhắn và sự kiện cập nhật công việc chỉ phát sóng tới các thành viên trong cùng dự án, không bao giờ bị rò rỉ chéo.
+> 2. Về kiến trúc, em tuân thủ Dependency Inversion: Tầng Application chỉ định nghĩa `IRealtimeNotificationService`, còn tầng API cài đặt `SignalRRealtimeNotificationService` gọi `IHubContext<ProjectHub>`. Nghiệp vụ không bị dính chặt vào công nghệ SignalR."*
+
+### Câu 14: Vì sao WebSocket cần xử lý xác thực JWT qua query string thay vì Header chuẩn?
+> **Trả lời:** *"Dạ, giao thức WebSocket chuẩn của trình duyệt (W3C WebSocket API) không hỗ trợ gắn kèm custom header HTTP như `Authorization: Bearer <token>` trong quá trình bắt tay kết nối (Handshake). Để khắc phục mà vẫn đảm bảo an toàn tuyệt đối, SignalR Client gửi token qua tham số query `?access_token=<jwt>`. Phía backend ASP.NET Core, em cấu hình sự kiện `OnMessageReceived` trong `JwtBearerEvents`: kiểm tra nếu request gửi tới endpoint `/hubs`, hệ thống sẽ trích xuất token từ query string gán vào context để xác thực người dùng bình thường."*
 
 ---
 

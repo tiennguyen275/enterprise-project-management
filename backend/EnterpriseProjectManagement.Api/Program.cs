@@ -1,5 +1,8 @@
 using System.Text;
+using EnterpriseProjectManagement.Api.Hubs;
+using EnterpriseProjectManagement.Api.Services;
 using EnterpriseProjectManagement.Application;
+using EnterpriseProjectManagement.Application.Common.Interfaces;
 using EnterpriseProjectManagement.Infrastructure;
 using EnterpriseProjectManagement.Infrastructure.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -10,6 +13,8 @@ using Microsoft.OpenApi;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
+builder.Services.AddSignalR();
+builder.Services.AddScoped<IRealtimeNotificationService, SignalRRealtimeNotificationService>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
 builder.Services.AddSwaggerGen(options =>
@@ -47,6 +52,20 @@ builder.Services.AddAuthentication(options =>
         ValidIssuer = issuer,
         ValidAudience = audience,
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret))
+    };
+
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+            var path = context.HttpContext.Request.Path;
+            if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+            {
+                context.Token = accessToken;
+            }
+            return Task.CompletedTask;
+        }
     };
 });
 
@@ -96,6 +115,27 @@ using (var scope = app.Services.CreateScope())
             );
             CREATE INDEX [IX_ProjectStatusReports_ProjectId] ON [dbo].[ProjectStatusReports] ([ProjectId]);
         END
+
+        IF OBJECT_ID(N'dbo.ProjectChatMessages', N'U') IS NULL
+        BEGIN
+            CREATE TABLE [dbo].[ProjectChatMessages] (
+                [Id] uniqueidentifier NOT NULL,
+                [ProjectId] uniqueidentifier NOT NULL,
+                [SenderId] uniqueidentifier NULL,
+                [SenderName] nvarchar(100) NOT NULL,
+                [Content] nvarchar(max) NOT NULL,
+                [IsAiGenerated] bit NOT NULL,
+                [CreatedAt] datetime2 NOT NULL,
+                [CreatedBy] nvarchar(max) NULL,
+                [UpdatedAt] datetime2 NULL,
+                [UpdatedBy] nvarchar(max) NULL,
+                [IsDeleted] bit NOT NULL,
+                CONSTRAINT [PK_ProjectChatMessages] PRIMARY KEY ([Id]),
+                CONSTRAINT [FK_ProjectChatMessages_Projects_ProjectId] FOREIGN KEY ([ProjectId]) REFERENCES [dbo].[Projects] ([Id]) ON DELETE CASCADE,
+                CONSTRAINT [FK_ProjectChatMessages_Users_SenderId] FOREIGN KEY ([SenderId]) REFERENCES [dbo].[Users] ([Id]) ON DELETE SET NULL
+            );
+            CREATE INDEX [IX_ProjectChatMessages_ProjectId] ON [dbo].[ProjectChatMessages] ([ProjectId]);
+        END
     ");
 }
 
@@ -115,5 +155,6 @@ app.UseCors("AllowReactApp");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHub<ProjectHub>("/hubs/project");
 
 app.Run();

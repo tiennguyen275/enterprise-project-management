@@ -17,6 +17,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<TaskComment> TaskComments => Set<TaskComment>();
     public DbSet<MeetingNote> MeetingNotes => Set<MeetingNote>();
     public DbSet<ProjectStatusReport> ProjectStatusReports => Set<ProjectStatusReport>();
+    public DbSet<ProjectChatMessage> ProjectChatMessages => Set<ProjectChatMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -29,6 +30,7 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<TaskComment>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<MeetingNote>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<ProjectStatusReport>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<ProjectChatMessage>().HasQueryFilter(e => !e.IsDeleted);
 
         modelBuilder.Entity<User>(entity =>
         {
@@ -124,6 +126,23 @@ public class ApplicationDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(e => e.ProjectId)
                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ProjectChatMessage>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Content).IsRequired();
+            entity.Property(e => e.SenderName).IsRequired().HasMaxLength(100);
+
+            entity.HasOne(e => e.Project)
+                  .WithMany()
+                  .HasForeignKey(e => e.ProjectId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Sender)
+                  .WithMany()
+                  .HasForeignKey(e => e.SenderId)
+                  .OnDelete(DeleteBehavior.SetNull);
         });
     }
 

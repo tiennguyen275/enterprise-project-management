@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using EnterpriseProjectManagement.Application.Common.Interfaces;
 using EnterpriseProjectManagement.Application.Features.Tasks.DTOs;
 using EnterpriseProjectManagement.Application.Features.Tasks.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -12,10 +13,12 @@ namespace EnterpriseProjectManagement.Api.Controllers;
 public class TasksController : ControllerBase
 {
     private readonly ITaskService _taskService;
+    private readonly IRealtimeNotificationService _realtimeNotificationService;
 
-    public TasksController(ITaskService taskService)
+    public TasksController(ITaskService taskService, IRealtimeNotificationService realtimeNotificationService)
     {
         _taskService = taskService;
+        _realtimeNotificationService = realtimeNotificationService;
     }
 
     private Guid GetCurrentUserId()
@@ -23,6 +26,20 @@ public class TasksController : ControllerBase
         var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value 
             ?? User.FindFirst("sub")?.Value;
         return Guid.Parse(claim!);
+    }
+
+    private async Task BroadcastTaskEventAsync(TaskResponseDto task, string action, CancellationToken cancellationToken)
+    {
+        if (task.ParentTaskId.HasValue)
+        {
+            var parent = await _taskService.GetTaskByIdAsync(task.ParentTaskId.Value, cancellationToken);
+            if (parent != null)
+            {
+                await _realtimeNotificationService.NotifyTaskUpdatedAsync(parent.ProjectId, parent, "updated", cancellationToken);
+                return;
+            }
+        }
+        await _realtimeNotificationService.NotifyTaskUpdatedAsync(task.ProjectId, task, action, cancellationToken);
     }
 
     [HttpGet("project/{projectId:guid}")]
@@ -55,6 +72,7 @@ public class TasksController : ControllerBase
         {
             var userId = GetCurrentUserId();
             var task = await _taskService.CreateTaskAsync(userId, request, cancellationToken);
+            await BroadcastTaskEventAsync(task, "created", cancellationToken);
             return CreatedAtAction(nameof(GetTaskById), new { id = task.Id }, task);
         }
         catch (KeyNotFoundException ex)
@@ -73,6 +91,7 @@ public class TasksController : ControllerBase
         try
         {
             var task = await _taskService.UpdateTaskAsync(id, request, cancellationToken);
+            await BroadcastTaskEventAsync(task, "updated", cancellationToken);
             return Ok(task);
         }
         catch (KeyNotFoundException ex)
@@ -91,6 +110,7 @@ public class TasksController : ControllerBase
         try
         {
             var task = await _taskService.AssignTaskAsync(id, request.AssigneeId, cancellationToken);
+            await BroadcastTaskEventAsync(task, "assigned", cancellationToken);
             return Ok(task);
         }
         catch (KeyNotFoundException ex)
@@ -102,7 +122,12 @@ public class TasksController : ControllerBase
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> DeleteTask(Guid id, CancellationToken cancellationToken)
     {
+        var existing = await _taskService.GetTaskByIdAsync(id, cancellationToken);
         await _taskService.DeleteTaskAsync(id, cancellationToken);
+        if (existing != null)
+        {
+            await BroadcastTaskEventAsync(existing, "deleted", cancellationToken);
+        }
         return NoContent();
     }
 
@@ -113,6 +138,11 @@ public class TasksController : ControllerBase
         {
             var userId = GetCurrentUserId();
             var comment = await _taskService.AddCommentAsync(id, userId, request.Content, cancellationToken);
+            var existing = await _taskService.GetTaskByIdAsync(id, cancellationToken);
+            if (existing != null)
+            {
+                await _realtimeNotificationService.NotifyProjectDataChangedAsync(existing.ProjectId, "comment_added", cancellationToken);
+            }
             return Ok(comment);
         }
         catch (KeyNotFoundException ex)
