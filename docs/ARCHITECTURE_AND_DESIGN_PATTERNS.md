@@ -399,3 +399,13 @@ frontend/src/assets/styles/
   - Cho phép nhập số giờ ước lượng và cập nhật số giờ thực tế thực hiện, trực quan hóa bằng thanh so sánh định mức thời gian (cảnh báo đỏ khi giờ thực tế vượt quá giờ ước lượng).
 - **Bộ lọc nhanh trên bảng Kanban:**
   - Hỗ trợ tìm kiếm tức thời theo mã công việc (`PRJ-1`), tiêu đề, lọc theo thành viên phụ trách (`Assignee`) và mức độ ưu tiên (`Priority`).
+
+---
+
+## 19. Tích Hợp Tài Liệu Hóa & Kiểm Thử API Trực Quan (Swagger UI & OpenAPI v3)
+
+### 19.1. Ý nghĩa Kỹ thuật
+- Để phục vụ quá trình phát triển độc lập giữa Frontend và Backend cũng như hỗ trợ demo kỹ thuật trước hội đồng, hệ thống tích hợp bộ công cụ tài liệu hóa API chuẩn quốc tế:
+  - **OpenAPI v3 Specification**: Tự động phân tích các Controller (Auth, Projects, Tasks, StatusReports, MeetingNotes) và sinh cấu trúc lược đồ request/response tại /swagger/v1/swagger.json và /openapi/v1.json.
+  - **Giao diện Swagger UI tương tác (/swagger)**: Cung cấp tài liệu trực quan, liệt kê đầy đủ 18 endpoints cùng tham số, mã lỗi HTTP (200 OK, 201 Created, 400 BadRequest, 401 Unauthorized, 404 NotFound).
+  - **Xác thực JWT Bearer tương tác (Nút Authorize)**: Tự động phát hiện cơ chế bảo vệ [Authorize] trên các Controller qua InferSecuritySchemes(), cho phép nhập chuỗi JWT Token để kiểm thử trực tiếp các API bảo mật trên trình duyệt mà không cần sử dụng phần mềm ngoài như Postman.
