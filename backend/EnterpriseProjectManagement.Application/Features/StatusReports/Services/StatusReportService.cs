@@ -55,7 +55,7 @@ public class StatusReportService : IStatusReportService
             throw new KeyNotFoundException("Không tìm thấy dự án.");
         }
 
-        var tasks = await _taskRepository.FindAsync(t => t.ProjectId == projectId, cancellationToken);
+        var tasks = await _taskRepository.FindAsync(t => t.ProjectId == projectId && t.ParentTaskId == null, cancellationToken);
         var reports = await _reportRepository.FindAsync(r => r.ProjectId == projectId, cancellationToken);
 
         var authorIds = reports
@@ -153,7 +153,7 @@ public class StatusReportService : IStatusReportService
             throw new InvalidOperationException("Ngày kết thúc kỳ báo cáo không được nhỏ hơn ngày bắt đầu.");
         }
 
-        var tasks = await _taskRepository.FindAsync(t => t.ProjectId == request.ProjectId, cancellationToken);
+        var tasks = await _taskRepository.FindAsync(t => t.ProjectId == request.ProjectId && t.ParentTaskId == null, cancellationToken);
 
         if (!request.SkipOutOfRangeWarning)
         {

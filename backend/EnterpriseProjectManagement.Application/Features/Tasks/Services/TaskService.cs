@@ -42,17 +42,52 @@ public class TaskService : ITaskService
     public async Task<IReadOnlyList<TaskResponseDto>> GetTasksByProjectAsync(Guid projectId, CancellationToken cancellationToken = default)
     {
         var tasks = await _taskRepository.FindAsync(t => t.ProjectId == projectId, cancellationToken);
-        var users = await _userRepository.GetAllAsync(cancellationToken);
-        var userDict = users.ToDictionary(u => u.Id, u => u.FullName);
+        var rootTasks = tasks.Where(t => t.ParentTaskId == null).OrderByDescending(t => t.CreatedAt).ToList();
+        var rootTaskIds = rootTasks.Select(t => t.Id).ToHashSet();
+
+        var comments = rootTaskIds.Count > 0
+            ? await _commentRepository.FindAsync(c => rootTaskIds.Contains(c.TaskId), cancellationToken)
+            : Array.Empty<TaskComment>();
+
+        var userIds = tasks
+            .Where(t => t.AssigneeId.HasValue)
+            .Select(t => t.AssigneeId!.Value)
+            .Concat(comments.Select(c => c.UserId))
+            .Distinct()
+            .ToList();
+
+        var userDict = new Dictionary<Guid, string>();
+        if (userIds.Count > 0)
+        {
+            var users = await _userRepository.FindAsync(u => userIds.Contains(u.Id), cancellationToken);
+            userDict = users.ToDictionary(u => u.Id, u => u.FullName);
+        }
+
+        var commentsByTask = comments
+            .OrderBy(c => c.CreatedAt)
+            .GroupBy(c => c.TaskId)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(c => new TaskCommentDto(
+                    c.Id,
+                    c.UserId,
+                    userDict.TryGetValue(c.UserId, out var author) ? author : "Thành viên",
+                    c.Content,
+                    c.CreatedAt
+                )).ToList()
+            );
 
         var result = new List<TaskResponseDto>();
-        foreach (var task in tasks.Where(t => t.ParentTaskId == null))
+        foreach (var task in rootTasks)
         {
-            var subTasks = tasks.Where(s => s.ParentTaskId == task.Id)
-                                .Select(s => new SubTaskSummaryDto(s.Id, s.TaskCode, s.Title, s.Status))
-                                .ToList();
+            var subTasks = tasks
+                .Where(s => s.ParentTaskId == task.Id)
+                .OrderBy(s => s.CreatedAt)
+                .Select(s => new SubTaskSummaryDto(s.Id, s.TaskCode, s.Title, s.Status))
+                .ToList();
 
             var assigneeName = task.AssigneeId.HasValue && userDict.TryGetValue(task.AssigneeId.Value, out var name) ? name : null;
+            var taskComments = commentsByTask.TryGetValue(task.Id, out var cList) ? cList : new List<TaskCommentDto>();
 
             result.Add(new TaskResponseDto(
                 task.Id,
@@ -70,7 +105,7 @@ public class TaskService : ITaskService
                 task.ParentTaskId,
                 task.CreatedAt,
                 subTasks,
-                new List<TaskCommentDto>()
+                taskComments
             ));
         }
 
@@ -81,16 +116,25 @@ public class TaskService : ITaskService
     {
         var userStr = userId.ToString();
         var tasks = await _taskRepository.FindAsync(
-            t => t.AssigneeId == userId || (t.AssigneeId == null && t.CreatedBy == userStr), 
+            t => t.ParentTaskId == null && (t.AssigneeId == userId || (t.AssigneeId == null && t.CreatedBy == userStr)), 
             cancellationToken);
 
-        var projects = await _projectRepository.GetAllAsync(cancellationToken);
+        var taskProjectIds = tasks.Select(t => t.ProjectId).Distinct().ToList();
+        var projects = taskProjectIds.Count > 0
+            ? await _projectRepository.FindAsync(p => taskProjectIds.Contains(p.Id), cancellationToken)
+            : Array.Empty<Project>();
         var projectDict = projects.ToDictionary(p => p.Id, p => (Name: p.Name, Code: p.Code));
 
-        var users = await _userRepository.GetAllAsync(cancellationToken);
+        var assigneeIds = tasks.Where(t => t.AssigneeId.HasValue).Select(t => t.AssigneeId!.Value).Distinct().ToList();
+        var users = assigneeIds.Count > 0
+            ? await _userRepository.FindAsync(u => assigneeIds.Contains(u.Id), cancellationToken)
+            : Array.Empty<User>();
         var userDict = users.ToDictionary(u => u.Id, u => u.FullName);
 
-        var allComments = await _commentRepository.GetAllAsync(cancellationToken);
+        var taskIds = tasks.Select(t => t.Id).ToHashSet();
+        var allComments = taskIds.Count > 0
+            ? await _commentRepository.FindAsync(c => taskIds.Contains(c.TaskId), cancellationToken)
+            : Array.Empty<TaskComment>();
         var commentCounts = allComments.GroupBy(c => c.TaskId).ToDictionary(g => g.Key, g => g.Count());
 
         var today = DateTime.UtcNow.Date;
@@ -139,16 +183,29 @@ public class TaskService : ITaskService
         if (task == null) return null;
 
         var subTasksEntities = await _taskRepository.FindAsync(t => t.ParentTaskId == taskId, cancellationToken);
-        var subTasks = subTasksEntities.Select(s => new SubTaskSummaryDto(s.Id, s.TaskCode, s.Title, s.Status)).ToList();
+        var subTasks = subTasksEntities
+            .OrderBy(s => s.CreatedAt)
+            .Select(s => new SubTaskSummaryDto(s.Id, s.TaskCode, s.Title, s.Status))
+            .ToList();
 
         var commentsEntities = await _commentRepository.FindAsync(c => c.TaskId == taskId, cancellationToken);
-        var users = await _userRepository.GetAllAsync(cancellationToken);
-        var userDict = users.ToDictionary(u => u.Id, u => u.FullName);
+        var userIds = commentsEntities
+            .Select(c => c.UserId)
+            .Concat(task.AssigneeId.HasValue ? new[] { task.AssigneeId.Value } : Array.Empty<Guid>())
+            .Distinct()
+            .ToList();
+
+        var userDict = new Dictionary<Guid, string>();
+        if (userIds.Count > 0)
+        {
+            var users = await _userRepository.FindAsync(u => userIds.Contains(u.Id), cancellationToken);
+            userDict = users.ToDictionary(u => u.Id, u => u.FullName);
+        }
 
         var comments = commentsEntities.OrderBy(c => c.CreatedAt).Select(c => new TaskCommentDto(
             c.Id,
             c.UserId,
-            userDict.TryGetValue(c.UserId, out var author) ? author : "Unknown",
+            userDict.TryGetValue(c.UserId, out var author) ? author : "Thành viên",
             c.Content,
             c.CreatedAt
         )).ToList();
@@ -177,11 +234,38 @@ public class TaskService : ITaskService
 
     public async Task<TaskResponseDto> CreateTaskAsync(Guid creatorUserId, CreateTaskRequestDto request, CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(request.Title))
+        {
+            throw new InvalidOperationException("Tiêu đề công việc không được để trống.");
+        }
+
+        if (request.EstimatedHours.HasValue && request.EstimatedHours.Value < 0)
+        {
+            throw new InvalidOperationException("Số giờ ước lượng không được nhỏ hơn 0.");
+        }
+
         var project = await _projectRepository.GetByIdAsync(request.ProjectId, cancellationToken);
         if (project == null) throw new KeyNotFoundException("Dự án không tồn tại.");
 
+        if (request.ParentTaskId.HasValue)
+        {
+            var parentTask = await _taskRepository.GetByIdAsync(request.ParentTaskId.Value, cancellationToken);
+            if (parentTask == null || parentTask.ProjectId != request.ProjectId || parentTask.ParentTaskId != null)
+            {
+                throw new InvalidOperationException("Công việc cha không hợp lệ.");
+            }
+        }
+
         var existingTasks = await _taskRepository.FindAsync(t => t.ProjectId == request.ProjectId, cancellationToken);
-        var nextNumber = existingTasks.Count + 1;
+        var maxNumber = existingTasks
+            .Select(t =>
+            {
+                var dashIndex = t.TaskCode.LastIndexOf('-');
+                return dashIndex >= 0 && int.TryParse(t.TaskCode[(dashIndex + 1)..], out var num) ? num : 0;
+            })
+            .DefaultIfEmpty(0)
+            .Max();
+        var nextNumber = Math.Max(maxNumber, existingTasks.Count) + 1;
         var taskCode = $"{project.Code}-{nextNumber}";
 
         var newTask = new ProjectTask
@@ -207,6 +291,17 @@ public class TaskService : ITaskService
 
     public async Task<TaskResponseDto> UpdateTaskAsync(Guid taskId, UpdateTaskRequestDto request, CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(request.Title))
+        {
+            throw new InvalidOperationException("Tiêu đề công việc không được để trống.");
+        }
+
+        if ((request.EstimatedHours.HasValue && request.EstimatedHours.Value < 0) ||
+            (request.ActualHours.HasValue && request.ActualHours.Value < 0))
+        {
+            throw new InvalidOperationException("Số giờ làm việc không được nhỏ hơn 0.");
+        }
+
         var task = await _taskRepository.GetByIdAsync(taskId, cancellationToken);
         if (task == null) throw new KeyNotFoundException("Không tìm thấy công việc.");
 
@@ -248,6 +343,12 @@ public class TaskService : ITaskService
         var task = await _taskRepository.GetByIdAsync(taskId, cancellationToken);
         if (task != null)
         {
+            var subTasks = await _taskRepository.FindAsync(t => t.ParentTaskId == taskId, cancellationToken);
+            foreach (var subTask in subTasks)
+            {
+                await _taskRepository.DeleteAsync(subTask, cancellationToken);
+            }
+
             await _taskRepository.DeleteAsync(task, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
@@ -255,6 +356,11 @@ public class TaskService : ITaskService
 
     public async Task<TaskCommentDto> AddCommentAsync(Guid taskId, Guid userId, string content, CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            throw new InvalidOperationException("Nội dung bình luận không được để trống.");
+        }
+
         var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
         if (user == null) throw new KeyNotFoundException("Người dùng không tồn tại.");
 

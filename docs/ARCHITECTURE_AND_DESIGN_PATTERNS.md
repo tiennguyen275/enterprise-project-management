@@ -1,4 +1,4 @@
-# KIẾN TRÚC HỆ THỐNG VÀ NGUYÊN LÝ THIẾT KẾ (SOLID & DESIGN PATTERNS)
+﻿# KIẾN TRÚC HỆ THỐNG VÀ NGUYÊN LÝ THIẾT KẾ (SOLID & DESIGN PATTERNS)
 
 Tài liệu này được biên soạn dành cho bạn đọc hiểu tường tận toàn bộ kiến trúc dự án để tự tin báo cáo và phản biện trước hội đồng chấm đồ án tốt nghiệp.
 
@@ -339,11 +339,10 @@ frontend/src/assets/styles/
 └── main.scss            # Tệp điều phối tập trung import toàn bộ các thành phần
 ```
 
+
 ### 15.3. Giá trị đạt được
-- **Độ tương phản tiêu chuẩn WCAG AAA**: Tiêu đề luôn hiển thị rõ nét với màu `#0f172a`, mô tả và ngày tháng phân cấp rõ ràng bằng `#475569` và `#64748b`.
+- **Độ tương phản chữ rõ ràng trên nền sáng**: Tiêu đề luôn hiển thị rõ nét với màu `#0f172a`, mô tả và ngày tháng phân cấp rõ ràng bằng `#475569` và `#64748b`.
 - **Hiệu năng biên dịch**: Vite Sass biên dịch trực tiếp toàn bộ hệ thống SCSS chỉ trong ~500ms, tệp build CSS nén gzip chỉ còn ~4.2 kB.
-
-
 
 ---
 
@@ -365,18 +364,38 @@ frontend/src/assets/styles/
 - **`GET /api/tasks/my-tasks`**: Trả về danh sách `MyTaskResponseDto` kèm mã dự án (`ProjectCode`), tên dự án (`ProjectName`), số lượng thảo luận (`CommentCount`) và cờ cảnh báo quá hạn (`IsOverdue`). Sắp xếp tự động ưu tiên: Quá hạn -> Hạn gần nhất -> Độ ưu tiên cao.
 - **`PATCH /api/tasks/{id}/assign`**: API chỉ định hoặc chuyển giao người thực hiện cho công việc.
 
+---
+
+## 17. Chuẩn Hóa Hệ Thống Thiết Kế Giao Diện (`DESIGN.md` & Quy Tắc SCSS)
+
+### 17.1. Tổ chức bộ quy tắc thiết kế đồng nhất
+Để giữ giao diện thống nhất giữa các màn hình, dự án quy định bảng màu, cỡ chữ và khoảng cách trong tài liệu thiết kế [`DESIGN.md`](file:///E:/EnterpriseProjectManagement/DESIGN.md) và file quy tắc [`.agent/rules/impeccable-ui.md`](file:///E:/EnterpriseProjectManagement/.agent/rules/impeccable-ui.md):
+
+1. **Tài liệu hóa biến thiết kế (`DESIGN.md`):** Quy định thống nhất bảng màu Slate/Blue, cỡ chữ, khoảng cách lề (`8px grid`) và bán kính bo góc trong `_variables.scss`.
+2. **Kiểu chữ & Số liệu thống kê:** Sử dụng màu chữ đậm `#0f172a` cho toàn bộ tiêu đề và số liệu, kết hợp `font-variant-numeric: tabular-nums` giúp các con số phần trăm và thống kê thẳng hàng.
+3. **Phân biệt màu sắc theo mức độ ưu tiên:**
+   - Mỗi thẻ dự án (`.project-card`) có viền màu xanh phía trên (`border-top: 3.5px solid #2563eb`).
+   - Mỗi thẻ công việc trên bảng Kanban (`.kanban-task-card`) và danh sách cá nhân (`.my-task-row`) có **viền trái đổi màu theo độ ưu tiên (`priority-border-1..4`)** (*Thấp*, *Trung bình*, *Cao*, *Khẩn cấp*).
+4. **Chống tràn chữ và vỡ khung:** Áp dụng `-webkit-line-clamp` và `line-clamp` cho các tiêu đề, mô tả dài và thiết kế trạng thái trống (Empty States) cho tất cả các tab.
 
 ---
 
-## 17. Tích Hợp Hệ Thống Thiết Kế Impeccable UI & Quy Chuẩn Chống Giao Diện Rập Khuôn (Anti-Slop Design System)
+## 18. Phân Hệ Báo Cáo Sức Khỏe Dự Án (R/A/G Health Check) & Quản Trị Công Việc Chuyên Sâu (WBS Subtasks & Time Tracking)
 
-### 17.1. Bối cảnh & Phương pháp luận `pbakaus/impeccable`
-Để tránh việc AI tạo ra giao diện chung chung, phẳng lì và thiếu điểm nhấn thị giác (thường gọi là *"AI Slop"*), dự án áp dụng bộ khung kỹ năng thiết kế từ **`pbakaus/impeccable`** vào cả tài liệu thiết kế gốc ([`DESIGN.md`](file:///E:/EnterpriseProjectManagement/DESIGN.md)) lẫn quy tắc tự động cho AI Agent ([`.agent/rules/impeccable-ui.md`](file:///E:/EnterpriseProjectManagement/.agent/rules/impeccable-ui.md)):
+### 18.1. Báo cáo Trạng thái & Chẩn đoán Sức khỏe Dự án (`StatusReportsController` & `StatusReportService`)
+- **Mô hình đánh giá R/A/G (Red - Amber - Green):**
+  - `OnTrack (1 - Xanh)`: Dự án đi đúng tiến độ, không có công việc bị quá hạn.
+  - `AtRisk (2 - Vàng)`: Có công việc bắt đầu trễ hạn hoặc dự án còn dưới 7 ngày đến ngày kết thúc nhưng tiến độ chưa đạt 80%.
+  - `Delayed (3 - Đỏ)`: Tỷ lệ công việc quá hạn >= 25% (hoặc từ 3 công việc quá hạn trở lên), hoặc dự án đã quá hạn kết thúc dự kiến.
+- **Lưu trữ Snapshot tiến độ định kỳ (`ProjectStatusReport`):**
+  - Mỗi kỳ báo cáo lưu lại số liệu tại thời điểm lập (`TotalTasksSnapshot`, `CompletedTasksSnapshot`, `OverdueTasksSnapshot`, `CompletionRateSnapshot`) kèm 3 nội dung: *Kết quả đạt được*, *Kế hoạch kỳ tiếp theo*, và *Rủi ro / Vướng mắc*.
+- **Kiểm tra công việc ngoài kỳ báo cáo (`HAVE_TASK_OUT_OF_RANGE`):**
+  - Cảnh báo người quản lý dự án khi có công việc phát sinh nằm ngoài khoảng thời gian kỳ báo cáo đã chọn và hỗ trợ xác nhận 2 bước.
 
-1. **`document` (`DESIGN.md`):** Chuẩn hóa toàn bộ hệ thống Design Tokens, thang đo kiểu chữ (Typography Scale), bảng màu ngữ nghĩa (Semantic Accents) và lưới không gian (8px Spatial Grid) thành nguồn chân lý duy nhất (Single Source of Truth).
-2. **`typeset` (Kiểu chữ & Độ tương phản cao):** Khóa toàn bộ tiêu đề và chỉ số KPI ở màu `#0f172a` (WCAG AAA), kết hợp `letter-spacing: -0.025em` và `font-variant-numeric: tabular-nums` giúp các con số thống kê thẳng hàng tuyệt đối.
-3. **`bolder` & `colorize` (Điểm nhấn ngữ nghĩa):**
-   - Mỗi thẻ dự án (`.project-card`) có viền nhấn thương hiệu phía trên (`border-top: 3.5px solid #2563eb`).
-   - Mỗi thẻ công việc trên bảng Kanban (`.kanban-task-card`) và danh sách cá nhân (`.my-task-row`) có **dải màu ngữ nghĩa bên trái (`priority-border-1..4`)** phản ánh tức thì mức độ ưu tiên (*Thấp*, *Trung bình*, *Cao*, *Khẩn cấp*).
-4. **`delight` & `animate` (Vi tương tác vật lý):** Sử dụng đường cong gia tốc `cubic-bezier(0.22, 1, 0.36, 1)` cùng bóng đổ đa tầng (Multi-layered ambient shadows), tạo cảm giác phản hồi xúc giác mượt mà khi kéo thả và di chuột.
-5. **`harden` (Chống vỡ bố cục):** Áp dụng `-webkit-line-clamp` cho các tiêu đề và mô tả tiếng Việt dài, đồng thời chuẩn hóa trạng thái rỗng (Empty States) trên mọi phân hệ.
+### 18.2. Phân rã Công việc Con (WBS Subtasks) & Theo dõi Thời gian (`EstimatedHours` / `ActualHours`)
+- **Quan hệ tự tham chiếu (`ParentTaskId` -> `SubTasks`):**
+  - Cho phép chia nhỏ một công việc lớn trên bảng Kanban thành danh sách các công việc con (Checklist Subtasks), tự động tính phần trăm hoàn thành việc con ngay trong modal chi tiết và hiển thị huy hiệu `X/Y việc con` trên thẻ Kanban.
+- **Theo dõi giờ làm việc (`EstimatedHours` vs `ActualHours`):**
+  - Cho phép nhập số giờ ước lượng và cập nhật số giờ thực tế thực hiện, trực quan hóa bằng thanh so sánh định mức thời gian (cảnh báo đỏ khi giờ thực tế vượt quá giờ ước lượng).
+- **Bộ lọc nhanh trên bảng Kanban:**
+  - Hỗ trợ tìm kiếm tức thời theo mã công việc (`PRJ-1`), tiêu đề, lọc theo thành viên phụ trách (`Assignee`) và mức độ ưu tiên (`Priority`).
