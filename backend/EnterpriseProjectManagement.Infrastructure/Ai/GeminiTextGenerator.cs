@@ -87,26 +87,63 @@ public class GeminiTextGenerator : IAiTextGenerator
         {
             return JsonSerializer.Serialize(new[]
             {
-                "Phân tích yêu cầu và xác định tiêu chí hoàn thành",
-                "Thiết kế kiến trúc và luồng xử lý chi tiết",
+                "Phân tích yêu cầu và đặc tả kỹ thuật",
+                "Thiết kế kiến trúc và xây dựng luồng xử lý",
                 "Hiện thực hóa mã nguồn và xử lý các ca biên",
-                "Kiểm thử chức năng và nghiệm thu cùng đội ngũ"
+                "Kiểm thử chức năng và nghiệm thu"
             });
         }
 
-        if (prompt.Contains("Đánh giá chung") || prompt.Contains("Dự án:"))
+        if (prompt.Contains("Hãy viết nhận xét về tình hình dự án gồm 3 phần ngắn"))
         {
             return "(Chế độ AI Heuristic Nội bộ)\n\n"
-                + "1. Đánh giá chung: Dự án đang duy trì nhịp độ thực thi với các đầu mục công việc được số hóa rõ ràng trên hệ thống.\n\n"
+                + "1. Đánh giá chung: Dự án đang duy trì tiến độ thực thi với các đầu mục công việc được số hóa rõ ràng.\n\n"
                 + "2. Rủi ro chính: Các công việc cận hạn và khối lượng đang thực hiện cần được giám sát chặt chẽ để tránh dồn ứ cuối kỳ.\n\n"
                 + "3. Việc nên làm ngay: Tập trung dứt điểm các công việc đang ở trạng thái 'Đang làm', phân bổ lại tải cho các thành viên có năng lực nhàn rỗi và cập nhật tiến độ đều đặn.";
         }
 
+        var lower = prompt.ToLowerInvariant();
+        var questionPart = lower;
+        var marker = "câu hỏi vào phòng chat dự án: \"";
+        var markerIdx = lower.IndexOf(marker, StringComparison.Ordinal);
+        if (markerIdx >= 0)
+        {
+            var startIdx = markerIdx + marker.Length;
+            var endQuoteIdx = lower.IndexOf('"', startIdx);
+            questionPart = endQuoteIdx > startIdx 
+                ? lower.Substring(startIdx, endQuoteIdx - startIdx) 
+                : lower.Substring(startIdx);
+        }
+
+        if (questionPart.Contains("rủi ro") || questionPart.Contains("nguy cơ") || questionPart.Contains("điểm nghẽn") || questionPart.Contains("khắc phục"))
+        {
+            return "(Chế độ AI Heuristic Nội bộ)\n\n"
+                + "Chào bạn! Phân tích rủi ro và giải pháp khắc phục cho dự án:\n"
+                + "1. Rủi ro trễ hạn đường găng: Các công việc có độ trôi (Total Float) bằng 0 ngày bắt buộc phải đúng hạn, vì bất kỳ sự chậm trễ nào ở nhánh này sẽ làm lùi ngày hoàn thành toàn dự án.\n"
+                + "2. Rủi ro dồn ứ: Cần tránh để quá nhiều việc cùng ở trạng thái 'Đang làm' dẫn đến phân tán nguồn lực.\n"
+                + "3. Giải pháp: Thảo luận nhanh đầu ngày (Daily Standup) và cập nhật thường xuyên bảng Kanban để phát hiện sớm các mắt xích bị nghẽn.";
+        }
+
+        if (questionPart.Contains("phân công") || questionPart.Contains("tăng tốc") || questionPart.Contains("nhân sự") || questionPart.Contains("phân bổ") || questionPart.Contains("tải"))
+        {
+            return "(Chế độ AI Heuristic Nội bộ)\n\n"
+                + "Chào bạn! Để tối ưu phân công và tăng tốc tiến độ cho dự án:\n"
+                + "1. Cân bằng tải công việc: Sử dụng tính năng xếp hạng phân bổ để chuyển bớt đầu việc cho những thành viên có tải nhẹ hơn, giảm áp lực cục bộ.\n"
+                + "2. Giới hạn công việc đang làm (WIP): Tập trung hoàn thành dứt điểm các thẻ đang ở cột 'Đang làm' trước khi mở thêm việc mới nhằm rút ngắn chu kỳ thực hiện.\n"
+                + "3. Tập trung vào đường găng: Ưu tiên tối đa cho các công việc thuộc Đường găng (CPM) và xử lý dứt điểm các công việc có nguy cơ quá hạn.";
+        }
+
+        if (questionPart.Contains("tiến độ") || questionPart.Contains("tóm tắt") || questionPart.Contains("tình hình") || questionPart.Contains("hiện trạng"))
+        {
+            return "(Chế độ AI Heuristic Nội bộ)\n\n"
+                + "Chào bạn! Tóm tắt hiện trạng tiến độ dự án:\n"
+                + "- Dự án đang được theo dõi trên bảng Kanban và sơ đồ Gantt đường găng (CPM).\n"
+                + "- Trọng tâm cần làm: Đẩy nhanh các công việc đang ở giai đoạn 'Chờ duyệt' và 'Đang làm' để đưa về đích đúng kế hoạch.\n"
+                + "- Đề xuất: Đảm bảo các ràng buộc thứ tự (Finish-to-Start) được hoàn tất đúng hạn để các công việc tiếp theo có thể khởi động ngay.";
+        }
+
         return "(Chế độ AI Heuristic Nội bộ)\n\n"
-            + "Chào bạn! Tôi đã phân tích hiện trạng dự án:\n"
-            + "- Về tiến độ: Hãy ưu tiên hoàn tất các công việc đang thực hiện trước khi nhận thêm việc mới nhằm giảm thiểu thời gian chờ.\n"
-            + "- Về nguồn lực: Khuyến khích tận dụng tính năng gợi ý phân công công việc để tối ưu hóa năng suất toàn đội.\n"
-            + "- Đề xuất: Tiếp tục trao đổi qua phòng chat dự án và cập nhật bảng Kanban thường xuyên để mọi người nắm bắt thông tin đồng bộ.";
+            + "Chào bạn! Trợ lý AI đã ghi nhận yêu cầu của bạn. Nhóm nên duy trì cập nhật bảng Kanban, trao đổi các vướng mắc trực tiếp trong phòng chat này và theo dõi sát sao tiến độ trên biểu đồ đường găng CPM để dự án về đích thành công.";
     }
 
     private sealed class GeminiRequest
