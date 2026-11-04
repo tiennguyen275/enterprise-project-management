@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../services/api';
 import Navbar from '../components/Navbar';
@@ -481,7 +481,7 @@ export default function ProjectDetail() {
 
             <div className="analytics-card">
               <h3><PeopleAltOutlinedIcon fontSize="small" /> Thống Kê Phân Bổ Công Việc Theo Thành Viên (Workload Allocation)</h3>
-              <p className="section-desc">Kế thừa chuẩn thuật toán thống kê AllocateTaskStatistic từ dự án Talgent</p>
+              <p className="section-desc">Theo dõi tỷ lệ phân bổ khối lượng công việc và tiến độ hoàn thành của từng thành viên trong dự án</p>
 
               <table className="data-table">
                 <thead>

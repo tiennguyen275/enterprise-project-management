@@ -31,7 +31,6 @@ public class AuthService : IAuthService
             throw new InvalidOperationException("Email này đã được sử dụng trong hệ thống.");
         }
 
-        // Băm mật khẩu an toàn với BCrypt
         var passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
 
         var newUser = new User

@@ -3,9 +3,6 @@ using EnterpriseProjectManagement.Infrastructure.Data;
 
 namespace EnterpriseProjectManagement.Infrastructure.Repositories;
 
-/// <summary>
-/// Unit of Work Pattern: Đảm bảo ACID transaction
-/// </summary>
 public class UnitOfWork : IUnitOfWork
 {
     private readonly ApplicationDbContext _context;
