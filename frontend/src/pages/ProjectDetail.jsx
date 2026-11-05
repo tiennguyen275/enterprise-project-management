@@ -8,6 +8,7 @@ import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
 import { useParams, Link } from 'react-router-dom';
 import api from '../services/api';
 import Navbar from '../components/Navbar';
+import FormattedAiText from '../components/FormattedAiText';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import AddIcon from '@mui/icons-material/Add';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
@@ -125,8 +126,10 @@ export default function ProjectDetail() {
   const [chatLoading, setChatLoading] = useState(true);
   const [chatInput, setChatInput] = useState('');
   const [chatSending, setChatSending] = useState(false);
+  const [aiThinking, setAiThinking] = useState(false);
   const [signalRConnected, setSignalRConnected] = useState(false);
   const chatBottomRef = useRef(null);
+  const aiThinkingTimerRef = useRef(null);
   const [scheduleData, setScheduleData] = useState(null);
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [showDependencyModal, setShowDependencyModal] = useState(false);
@@ -167,14 +170,24 @@ export default function ProjectDetail() {
     const textToSend = directText || chatInput;
     if (!textToSend || !textToSend.trim() || chatSending) return;
 
+    const lower = textToSend.toLowerCase();
+    const isAskingAi = forceAskAi || lower.includes('@ai') || lower.startsWith('/ai');
+
     if (!directText) {
       setChatInput('');
     }
     setChatSending(true);
+    if (isAskingAi) {
+      setAiThinking(true);
+      if (aiThinkingTimerRef.current) clearTimeout(aiThinkingTimerRef.current);
+      aiThinkingTimerRef.current = setTimeout(() => {
+        setAiThinking(false);
+      }, 25000);
+    }
     try {
       const res = await api.post(`/projects/${id}/messages`, {
         content: textToSend.trim(),
-        askAi: forceAskAi || textToSend.includes('@ai') || textToSend.startsWith('/ai'),
+        askAi: isAskingAi,
       });
       if (res.data) {
         setChatMessages((prev) => {
@@ -184,6 +197,7 @@ export default function ProjectDetail() {
       }
     } catch (err) {
       console.error('Loi gui tin nhan:', err);
+      setAiThinking(false);
     } finally {
       setChatSending(false);
     }
@@ -209,6 +223,19 @@ export default function ProjectDetail() {
           if (prev.some((m) => m.id === message.id)) return prev;
           return [...prev, message];
         });
+        if (message.isAiGenerated) {
+          setAiThinking(false);
+          if (aiThinkingTimerRef.current) clearTimeout(aiThinkingTimerRef.current);
+        } else if (
+          message.content &&
+          (message.content.toLowerCase().includes('@ai') || message.content.toLowerCase().startsWith('/ai'))
+        ) {
+          setAiThinking(true);
+          if (aiThinkingTimerRef.current) clearTimeout(aiThinkingTimerRef.current);
+          aiThinkingTimerRef.current = setTimeout(() => {
+            setAiThinking(false);
+          }, 25000);
+        }
       },
       onTaskUpdate: ({ task, action }) => {
         if (!task || task.parentTaskId) return;
@@ -250,7 +277,13 @@ export default function ProjectDetail() {
     if (activeTab === 'chat') {
       chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [chatMessages, activeTab]);
+  }, [chatMessages, aiThinking, activeTab]);
+
+  useEffect(() => {
+    return () => {
+      if (aiThinkingTimerRef.current) clearTimeout(aiThinkingTimerRef.current);
+    };
+  }, []);
 
   const fetchScheduleData = async () => {
     try {
@@ -1062,7 +1095,7 @@ export default function ProjectDetail() {
               {aiInsightError && <p className="ai-error-text">{aiInsightError}</p>}
               {aiInsight && (
                 <div className="ai-insight-body">
-                  <p>{aiInsight.insight}</p>
+                  <FormattedAiText content={aiInsight.insight} />
                   <span>Tạo lúc {new Date(aiInsight.generatedAt).toLocaleTimeString('vi-VN')}</span>
                 </div>
               )}
@@ -1316,11 +1349,34 @@ export default function ProjectDetail() {
                             {new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </span>
                         </div>
-                        <div className="message-text">{m.content}</div>
+                        <div className="message-text">
+                          <FormattedAiText content={m.content} />
+                        </div>
                       </div>
                     </div>
                   );
                 })
+              )}
+              {aiThinking && (
+                <div className="chat-bubble-row ai-message ai-typing-row">
+                  <div className="avatar-box">
+                    <AutoAwesomeOutlinedIcon className="pulse-ai-icon" style={{ fontSize: 18 }} />
+                  </div>
+                  <div className="bubble-body">
+                    <div className="sender-meta">
+                      <span>Trợ lý AI Gemini</span>
+                      <span className="ai-badge">
+                        <AutoAwesomeOutlinedIcon style={{ fontSize: 11 }} /> Đang phản hồi...
+                      </span>
+                    </div>
+                    <div className="ai-typing-indicator">
+                      <span className="typing-dot" />
+                      <span className="typing-dot" />
+                      <span className="typing-dot" />
+                      <span className="typing-text">Trợ lý AI đang phân tích dữ liệu dự án...</span>
+                    </div>
+                  </div>
+                </div>
               )}
               <div ref={chatBottomRef} />
             </div>

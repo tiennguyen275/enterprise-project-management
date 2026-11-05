@@ -149,6 +149,7 @@ public class ProjectChatService : IProjectChatService
         promptBuilder.AppendLine("1. Trả lời bằng tiếng Việt, ngắn gọn, súc tích (khoảng 2-4 đoạn hoặc gạch đầu dòng rõ ràng).");
         promptBuilder.AppendLine("2. Tập trung vào tiến độ, phân bổ nguồn lực và giải pháp tháo gỡ điểm nghẽn của dự án.");
         promptBuilder.AppendLine("3. Giữ văn phong chuyên nghiệp, khích lệ tinh thần đồng đội.");
+        promptBuilder.AppendLine("4. Trình bày sạch sẽ, phân đoạn mạch lạc, không lặp lại dấu hoa thị hay ký tự thừa.");
 
         string aiAnswer;
         try
