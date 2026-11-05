@@ -1,19 +1,26 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
-import PersonAddOutlinedIcon from '@mui/icons-material/PersonAddOutlined';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import EmailOutlinedIcon from '@mui/icons-material/EmailOutlined';
 import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined';
 import ErrorOutlineOutlinedIcon from '@mui/icons-material/ErrorOutlineOutlined';
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
+import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
+import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
+import AutoAwesomeOutlinedIcon from '@mui/icons-material/AutoAwesomeOutlined';
+import BoltOutlinedIcon from '@mui/icons-material/BoltOutlined';
+import ShieldOutlinedIcon from '@mui/icons-material/ShieldOutlined';
+import CheckCircleOutlineOutlinedIcon from '@mui/icons-material/CheckCircleOutlineOutlined';
 
 export default function Register() {
   const [email, setEmail] = useState('');
   const [fullName, setFullName] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { register } = useAuth();
+  const { register, googleLogin } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -30,76 +37,216 @@ export default function Register() {
     }
   };
 
+  const handleGoogleSignup = async () => {
+    setError('');
+    setLoading(true);
+    try {
+      const demoEmail = email.trim() || 'enterprise.member@gmail.com';
+      await googleLogin({
+        email: demoEmail,
+        fullName: fullName.trim() || demoEmail.split('@')[0],
+        googleId: `google-${Date.now()}`,
+        avatarUrl: 'https://lh3.googleusercontent.com/a/default-user',
+      });
+      navigate('/');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Đăng ký bằng Google thất bại.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div className="auth-container">
-      <div className="auth-card">
-        <div className="auth-header">
-          <div className="auth-icon-wrapper">
-            <PersonAddOutlinedIcon fontSize="large" color="primary" />
+    <div className="auth-split-wrapper">
+      <div className="auth-hero-panel">
+        <div className="hero-brand">
+          <div className="brand-icon-box">
+            <AccountTreeOutlinedIcon fontSize="medium" />
           </div>
-          <h2>Tạo Tài Khoản</h2>
-          <p>Tham gia hệ thống quản lý dự án</p>
+          <div>
+            <div className="brand-title">EPMS Enterprise</div>
+            <div className="brand-subtitle">Project Management System</div>
+          </div>
         </div>
 
-        {error && (
-          <div className="alert-error">
-            <ErrorOutlineOutlinedIcon fontSize="small" />
-            <span>{error}</span>
+        <div className="hero-content">
+          <div className="hero-pill">
+            <ShieldOutlinedIcon style={{ fontSize: 14 }} />
+            <span>KHỞI TẠO KHÔNG GIAN LÀM VIỆC</span>
           </div>
-        )}
 
-        <form onSubmit={handleSubmit} className="auth-form">
-          <div className="form-group">
-            <label>Họ và tên</label>
-            <div className="input-with-icon">
-              <AccountCircleOutlinedIcon fontSize="small" className="input-icon" />
-              <input
-                type="text"
-                required
-                placeholder="Nguyễn Văn A"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-              />
+          <h1>
+            Quản Lý & Điều Phối <br />
+            <span className="highlight-gradient">Toàn Diện Doanh Nghiệp</span>
+          </h1>
+
+          <p className="hero-description">
+            Chuẩn hóa quy trình giao việc, phân tích rủi ro trễ hạn theo thuật toán CPM
+            và cộng tác thông minh cùng đồng đội ngay hôm nay.
+          </p>
+
+          <div className="hero-features-list">
+            <div className="feature-item">
+              <div className="feature-icon-wrapper">
+                <AccountTreeOutlinedIcon fontSize="small" />
+              </div>
+              <div className="feature-text">
+                <h4>Đường Găng CPM & Biểu Đồ Gantt</h4>
+                <p>Thuật toán 2 lượt Forward/Backward tự động tìm công việc găng có Total Float bằng 0.</p>
+              </div>
+            </div>
+
+            <div className="feature-item">
+              <div className="feature-icon-wrapper">
+                <BoltOutlinedIcon fontSize="small" />
+              </div>
+              <div className="feature-text">
+                <h4>Đồng Bộ Kanban Thời Gian Thực</h4>
+                <p>Cập nhật tức thì không gián đoạn qua SignalR WebSocket khi kéo thả công việc.</p>
+              </div>
+            </div>
+
+            <div className="feature-item">
+              <div className="feature-icon-wrapper">
+                <AutoAwesomeOutlinedIcon fontSize="small" />
+              </div>
+              <div className="feature-text">
+                <h4>Trợ Lý AI Phân Tích Ngữ Cảnh</h4>
+                <p>Đọc trực tiếp số liệu dự án thực tế để cảnh báo điểm nghẽn và đề xuất phân công.</p>
+              </div>
             </div>
           </div>
+        </div>
 
-          <div className="form-group">
-            <label>Email</label>
-            <div className="input-with-icon">
-              <EmailOutlinedIcon fontSize="small" className="input-icon" />
-              <input
-                type="email"
-                required
-                placeholder="tennguoidung@congty.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
+        <div className="hero-footer">
+          <div className="badge-check">
+            <CheckCircleOutlineOutlinedIcon style={{ fontSize: 16, color: '#22c55e' }} />
+            <span>Clean Architecture .NET 10</span>
+          </div>
+          <div className="badge-check">
+            <CheckCircleOutlineOutlinedIcon style={{ fontSize: 16, color: '#22c55e' }} />
+            <span>React 19 SPA</span>
+          </div>
+          <div className="badge-check">
+            <CheckCircleOutlineOutlinedIcon style={{ fontSize: 16, color: '#22c55e' }} />
+            <span>Bảo mật JWT</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="auth-form-panel">
+        <div className="auth-card-inner">
+          <div className="auth-form-header">
+            <h2>Tạo Tài Khoản Mới</h2>
+            <p>Tham gia hệ thống điều phối dự án doanh nghiệp</p>
           </div>
 
-          <div className="form-group">
-            <label>Mật khẩu</label>
-            <div className="input-with-icon">
-              <LockOutlinedIcon fontSize="small" className="input-icon" />
-              <input
-                type="password"
-                required
-                minLength={6}
-                placeholder="Tối thiểu 6 ký tự"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+          <button
+            type="button"
+            className="btn-google-login"
+            onClick={handleGoogleSignup}
+            disabled={loading}
+          >
+            <svg viewBox="0 0 24 24">
+              <path
+                fill="#4285F4"
+                d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"
               />
-            </div>
-          </div>
-
-          <button type="submit" className="btn-primary" disabled={loading}>
-            {loading ? 'Đang tạo...' : 'Tạo Tài Khoản'}
+              <path
+                fill="#34A853"
+                d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"
+              />
+              <path
+                fill="#FBBC05"
+                d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"
+              />
+              <path
+                fill="#EA4335"
+                d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
+              />
+            </svg>
+            <span>Đăng ký nhanh với Google</span>
           </button>
-        </form>
 
-        <div className="auth-footer">
-          <span>Đã có tài khoản? </span>
-          <Link to="/login">Đăng nhập</Link>
+          <div className="auth-divider">
+            <span>HOẶC ĐĂNG KÝ VỚI EMAIL</span>
+          </div>
+
+          {error && (
+            <div className="alert-error" style={{ marginBottom: '1rem' }}>
+              <ErrorOutlineOutlinedIcon fontSize="small" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="auth-form">
+            <div className="form-group">
+              <label>Họ và tên thành viên</label>
+              <div className="input-with-icon">
+                <AccountCircleOutlinedIcon fontSize="small" className="input-icon" />
+                <input
+                  type="text"
+                  required
+                  placeholder="Nguyễn Văn A"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  autoComplete="name"
+                />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label>Email công vụ</label>
+              <div className="input-with-icon">
+                <EmailOutlinedIcon fontSize="small" className="input-icon" />
+                <input
+                  type="email"
+                  required
+                  placeholder="tennguoidung@congty.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="email"
+                />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label>Mật khẩu</label>
+              <div className="input-with-icon">
+                <LockOutlinedIcon fontSize="small" className="input-icon" />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  minLength={6}
+                  placeholder="Tối thiểu 6 ký tự"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  className="password-toggle-btn"
+                  onClick={() => setShowPassword(!showPassword)}
+                  title={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                >
+                  {showPassword ? (
+                    <VisibilityOffOutlinedIcon fontSize="small" />
+                  ) : (
+                    <VisibilityOutlinedIcon fontSize="small" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <button type="submit" className="btn-submit" disabled={loading}>
+              {loading ? 'Đang khởi tạo...' : 'Tạo Tài Khoản Mới'}
+            </button>
+          </form>
+
+          <div className="auth-footer">
+            <span>Đã có tài khoản thành viên? </span>
+            <Link to="/login">Đăng nhập ngay</Link>
+          </div>
         </div>
       </div>
     </div>

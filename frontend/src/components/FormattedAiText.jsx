@@ -147,3 +147,4 @@ export default function FormattedAiText({ content }) {
 
   return <div className="ai-formatted-container">{elements}</div>;
 }
+
