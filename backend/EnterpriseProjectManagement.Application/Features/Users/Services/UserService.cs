@@ -119,9 +119,14 @@ public class UserService : IUserService
     public async Task<UserDirectoryItemDto> UpdateUserRoleAsync(Guid adminUserId, Guid targetUserId, SystemRole newRole, CancellationToken cancellationToken = default)
     {
         var admin = await _userRepository.GetByIdAsync(adminUserId, cancellationToken);
-        if (admin == null || admin.SystemRole != SystemRole.Admin)
+        if (admin == null || !admin.IsActive || admin.SystemRole != SystemRole.Admin)
         {
-            throw new UnauthorizedAccessException("Chỉ Quản trị viên hệ thống mới có quyền thay đổi vai trò.");
+            throw new UnauthorizedAccessException("Chỉ Quản trị viên hệ thống đang hoạt động mới có quyền thay đổi vai trò.");
+        }
+
+        if (!Enum.IsDefined(typeof(SystemRole), newRole))
+        {
+            throw new InvalidOperationException("Vai trò hệ thống không hợp lệ.");
         }
 
         if (adminUserId == targetUserId && newRole != SystemRole.Admin)
@@ -144,9 +149,9 @@ public class UserService : IUserService
     public async Task<UserDirectoryItemDto> ToggleUserActiveAsync(Guid adminUserId, Guid targetUserId, bool isActive, CancellationToken cancellationToken = default)
     {
         var admin = await _userRepository.GetByIdAsync(adminUserId, cancellationToken);
-        if (admin == null || admin.SystemRole != SystemRole.Admin)
+        if (admin == null || !admin.IsActive || admin.SystemRole != SystemRole.Admin)
         {
-            throw new UnauthorizedAccessException("Chỉ Quản trị viên hệ thống mới có quyền khóa/mở tài khoản.");
+            throw new UnauthorizedAccessException("Chỉ Quản trị viên hệ thống đang hoạt động mới có quyền khóa/mở tài khoản.");
         }
 
         if (adminUserId == targetUserId && !isActive)
