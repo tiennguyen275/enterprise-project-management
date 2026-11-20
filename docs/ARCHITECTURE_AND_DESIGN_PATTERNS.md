@@ -486,3 +486,27 @@ Mô hình mặc định là `gemini-2.5-flash`, đổi qua mục `Gemini:Model`.
   - Thẻ găng hiển thị viền đỏ nổi bật (Critical Gradient) với độ trôi 0 ngày.
   - Thẻ dự trữ hiển thị thanh màu xanh tím kèm chỉ số ngày có thể trì hoãn an toàn.
 - Cho phép người dùng trực tiếp thêm/xóa các liên kết Finish-to-Start và cập nhật lại toàn bộ ma trận tiến độ ngay tức thì.
+
+
+---
+
+## 23. Hệ Sinh Thái Quản Trị Doanh Nghiệp Nâng Cao (RBAC 2 Tầng, Nhân Sự, Global Search, Thông Báo Realtime, Xuất Báo Cáo & Audit Log)
+
+### 23.1. Phân Quyền 2 Tầng (Two-Tier RBAC)
+- **Tầng hệ thống (`SystemRole`: `User = 0`, `Admin = 1`)**: Lưu trên bảng `Users` và đính kèm trong `ClaimTypes.Role` của JWT Token.
+  - **System Admin**: Có tầm nhìn toàn cảnh (Executive Oversight) trên toàn bộ dự án của doanh nghiệp và quyền quản trị nhân sự (cấp/hạ quyền Admin, khóa/mở tài khoản với cơ chế chống tự hạ quyền và kiểm tra `!admin.IsActive`).
+  - **Nhân viên (`User`)**: Chỉ truy cập các dự án được phân công trong `ProjectMembers`, bảo đảm tính cô lập dữ liệu giữa các phòng ban.
+- **Tầng dự án (`ProjectRole`)**: Giữ nguyên phân cấp `Owner`, `ProjectManager`, `Member`, `Viewer` trong phạm vi từng dự án.
+
+### 23.2. Danh Bạ Nhân Sự (`/users`), Cài Đặt Hồ Sơ (`/profile`) & Avatar Đồng Bộ
+- **Backend**: `UsersController` & `UserService` cung cấp `GET /api/users`, `GET/PUT /api/users/me`, `PATCH /api/users/{id}/role`, `PATCH /api/users/{id}/status`.
+- **Avatar xuyên suốt**: Component `UserAvatar.jsx` và `AssigneeSelect.jsx` đồng bộ ảnh đại diện trên Navbar, Danh bạ Nhân sự, cụm Avatar xếp chồng ở Dashboard, thẻ Kanban, bộ lọc người thực hiện, bình luận và Modal Chi tiết công việc bố cục 2 cột ngang.
+
+### 23.3. Tìm Kiếm Toàn Cục (`Ctrl + K`) & Tiếng Việt Không Dấu
+- `SearchController` (`GET /api/search?q=...`) và `GlobalSearchService` chuẩn hóa chuỗi Unicode (`FormD` + chuyển `đ -> d`) để tìm kiếm không dấu trên 3 nhóm (**Dự án, Công việc, Nhân sự**) đồng thời tuân thủ phân quyền RBAC.
+- Frontend cung cấp **Header 3 cột Glassmorphism** với thanh Spotlight Search trung tâm, điều hướng bàn phím (`↑ ↓ Enter Esc`), lịch sử tìm kiếm gần đây và mở thẳng chi tiết công việc qua `?taskId=`.
+
+### 23.4. Chuông Thông Báo Realtime (SignalR) & Nhật Ký Hoạt Động (Audit Log)
+- **Realtime Notification Center**: Bảng `UserNotifications`, `NotificationsController` và `NotificationService` đẩy sự kiện `ReceiveUserNotification` trực tiếp tới nhóm SignalR cá nhân `user-{userId}` trong `ProjectHub` khi có giao việc, bình luận mới hoặc lời mời tham gia dự án.
+- **Activity / Audit Log**: Bảng `ProjectActivityLogs` và `ActivityLogService` (`GET /api/projects/{id}/activities`) tự động ghi nhận dòng thời gian các thao tác quan trọng trong dự án kèm Avatar và thời điểm thực hiện.
+- **Xuất Báo Cáo (`exportReport.js`)**: Hỗ trợ xuất trực tiếp danh sách công việc & tiến độ đường găng CPM ra **Excel (`.csv` UTF-8 BOM)** và **In Báo cáo Tổng hợp (PDF)** ngay từ tab Analytics.

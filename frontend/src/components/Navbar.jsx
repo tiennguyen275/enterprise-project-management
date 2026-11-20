@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import UserAvatar from './UserAvatar';
 import GlobalSearchModal from './GlobalSearchModal';
+import NotificationBell from './NotificationBell';
 import FolderSpecialOutlinedIcon from '@mui/icons-material/FolderSpecialOutlined';
 import AssignmentOutlinedIcon from '@mui/icons-material/AssignmentOutlined';
 import PeopleOutlineOutlinedIcon from '@mui/icons-material/PeopleOutlineOutlined';
@@ -77,6 +78,7 @@ export default function Navbar() {
         </div>
 
         <div className="nav-user">
+          <NotificationBell />
           <Link to="/profile" className="user-profile-widget user-profile-link" title="Cài đặt hồ sơ cá nhân">
             <UserAvatar
               name={user?.fullName}

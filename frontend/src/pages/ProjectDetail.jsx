@@ -12,6 +12,10 @@ import FormattedAiText from '../components/FormattedAiText';
 import UserAvatar from '../components/UserAvatar';
 import AssigneeSelect from '../components/AssigneeSelect';
 import { matchesSearch } from '../utils/textSearch';
+import { exportTasksToExcelCsv, exportScheduleToExcelCsv, printExecutiveReport } from '../utils/exportReport';
+import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined';
+import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
+import HistoryIcon from '@mui/icons-material/History';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import AddIcon from '@mui/icons-material/Add';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
@@ -54,6 +58,7 @@ export default function ProjectDetail() {
   const [analytics, setAnalytics] = useState(null);
   const [notes, setNotes] = useState([]);
   const [healthOverview, setHealthOverview] = useState(null);
+  const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [draggedTaskId, setDraggedTaskId] = useState(null);
@@ -357,9 +362,10 @@ export default function ProjectDetail() {
       api.get(`/projects/${id}/analytics`),
       api.get(`/meetingnotes/project/${id}`),
       api.get(`/status-reports/project/${id}`),
-      api.get(`/projects/${id}/schedule`)
+      api.get(`/projects/${id}/schedule`),
+      api.get(`/projects/${id}/activities`)
     ])
-      .then(([projRes, tasksRes, analyticsRes, notesRes, healthRes, scheduleRes]) => {
+      .then(([projRes, tasksRes, analyticsRes, notesRes, healthRes, scheduleRes, activitiesRes]) => {
         if (isMounted) {
           setProject(projRes.data);
           setTasks(tasksRes.data);
@@ -368,6 +374,9 @@ export default function ProjectDetail() {
           setHealthOverview(healthRes.data);
           if (scheduleRes) {
             setScheduleData(scheduleRes.data);
+          }
+          if (activitiesRes) {
+            setActivities(activitiesRes.data || []);
           }
         }
       })
@@ -1655,8 +1664,35 @@ export default function ProjectDetail() {
           </div>
         )}
 
-                {activeTab === 'analytics' && analytics && (
+        {activeTab === 'analytics' && analytics && (
           <div className="analytics-layout">
+            <div className="export-actions-bar">
+              <button
+                type="button"
+                className="btn-export-report"
+                onClick={() => exportTasksToExcelCsv(project, tasks)}
+              >
+                <DownloadOutlinedIcon style={{ fontSize: 16 }} />
+                <span>Xuất Excel Công việc (.csv)</span>
+              </button>
+              <button
+                type="button"
+                className="btn-export-report"
+                onClick={() => exportScheduleToExcelCsv(project, scheduleData)}
+              >
+                <DownloadOutlinedIcon style={{ fontSize: 16 }} />
+                <span>Xuất Excel Tiến độ CPM (.csv)</span>
+              </button>
+              <button
+                type="button"
+                className="btn-export-report"
+                onClick={() => printExecutiveReport(project, tasks, healthOverview)}
+              >
+                <PrintOutlinedIcon style={{ fontSize: 16 }} />
+                <span>In Báo cáo Tổng hợp (PDF)</span>
+              </button>
+            </div>
+
             <div className="stats-cards-grid">
               <div className="stat-card">
                 <span className="stat-label">Tổng số công việc</span>
@@ -1709,6 +1745,39 @@ export default function ProjectDetail() {
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            <div className="activity-timeline-card">
+              <h3>
+                <HistoryIcon fontSize="small" style={{ color: '#6366f1' }} />
+                <span>Nhật Ký Hoạt Động Dự Án (Audit Log)</span>
+              </h3>
+              {activities.length === 0 ? (
+                <p className="activity-empty">Chưa có lịch sử hoạt động nào được ghi nhận trong dự án này.</p>
+              ) : (
+                <div className="activity-list">
+                  {activities.map((act) => (
+                    <div key={act.id} className="activity-row">
+                      <UserAvatar
+                        name={act.actorName}
+                        avatarUrl={act.actorAvatarUrl}
+                        size="sm"
+                      />
+                      <div className="activity-content">
+                        <div className="activity-line">
+                          <strong>{act.actorName}</strong>
+                          {act.targetCode && <span className="activity-code">{act.targetCode}</span>}
+                          <span>{act.description}</span>
+                        </div>
+                        <div className="activity-time">
+                          {new Date(act.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}{' '}
+                          · {new Date(act.createdAt).toLocaleDateString('vi-VN')}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}

@@ -163,6 +163,49 @@ using (var scope = app.Services.CreateScope())
         BEGIN
             ALTER TABLE [dbo].[Users] ADD [SystemRole] int NOT NULL CONSTRAINT [DF_Users_SystemRole] DEFAULT(0);
         END
+
+        IF OBJECT_ID(N'dbo.UserNotifications', N'U') IS NULL
+        BEGIN
+            CREATE TABLE [dbo].[UserNotifications] (
+                [Id] uniqueidentifier NOT NULL,
+                [UserId] uniqueidentifier NOT NULL,
+                [Title] nvarchar(200) NOT NULL,
+                [Message] nvarchar(max) NOT NULL,
+                [Type] nvarchar(50) NOT NULL,
+                [LinkUrl] nvarchar(500) NULL,
+                [IsRead] bit NOT NULL,
+                [ActorName] nvarchar(150) NULL,
+                [ActorAvatarUrl] nvarchar(max) NULL,
+                [CreatedAt] datetime2 NOT NULL,
+                [CreatedBy] nvarchar(max) NULL,
+                [UpdatedAt] datetime2 NULL,
+                [UpdatedBy] nvarchar(max) NULL,
+                [IsDeleted] bit NOT NULL,
+                CONSTRAINT [PK_UserNotifications] PRIMARY KEY ([Id])
+            );
+            CREATE INDEX [IX_UserNotifications_UserId] ON [dbo].[UserNotifications] ([UserId]);
+        END
+
+        IF OBJECT_ID(N'dbo.ProjectActivityLogs', N'U') IS NULL
+        BEGIN
+            CREATE TABLE [dbo].[ProjectActivityLogs] (
+                [Id] uniqueidentifier NOT NULL,
+                [ProjectId] uniqueidentifier NOT NULL,
+                [ActorId] uniqueidentifier NULL,
+                [ActorName] nvarchar(150) NOT NULL,
+                [ActorAvatarUrl] nvarchar(max) NULL,
+                [Action] nvarchar(80) NOT NULL,
+                [TargetCode] nvarchar(80) NULL,
+                [Description] nvarchar(max) NOT NULL,
+                [CreatedAt] datetime2 NOT NULL,
+                [CreatedBy] nvarchar(max) NULL,
+                [UpdatedAt] datetime2 NULL,
+                [UpdatedBy] nvarchar(max) NULL,
+                [IsDeleted] bit NOT NULL,
+                CONSTRAINT [PK_ProjectActivityLogs] PRIMARY KEY ([Id])
+            );
+            CREATE INDEX [IX_ProjectActivityLogs_ProjectId] ON [dbo].[ProjectActivityLogs] ([ProjectId]);
+        END
     ");
 }
 

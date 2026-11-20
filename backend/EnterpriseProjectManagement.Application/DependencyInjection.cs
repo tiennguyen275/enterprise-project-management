@@ -1,6 +1,8 @@
+using EnterpriseProjectManagement.Application.Features.Activities.Services;
 using EnterpriseProjectManagement.Application.Features.AiAssistant.Services;
 using EnterpriseProjectManagement.Application.Features.Auth.Services;
 using EnterpriseProjectManagement.Application.Features.MeetingNotes.Services;
+using EnterpriseProjectManagement.Application.Features.Notifications.Services;
 using EnterpriseProjectManagement.Application.Features.ProjectChat.Services;
 using EnterpriseProjectManagement.Application.Features.Projects.Services;
 using EnterpriseProjectManagement.Application.Features.Schedule.Services;
@@ -26,6 +28,8 @@ public static class DependencyInjection
         services.AddScoped<IScheduleService, ScheduleService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IGlobalSearchService, GlobalSearchService>();
+        services.AddScoped<INotificationService, NotificationService>();
+        services.AddScoped<IActivityLogService, ActivityLogService>();
         return services;
     }
 }

@@ -1,6 +1,10 @@
 using System.Security.Claims;
+using EnterpriseProjectManagement.Application.Common.Interfaces;
+using EnterpriseProjectManagement.Application.Features.Activities.Services;
+using EnterpriseProjectManagement.Application.Features.Notifications.Services;
 using EnterpriseProjectManagement.Application.Features.Projects.DTOs;
 using EnterpriseProjectManagement.Application.Features.Projects.Services;
+using EnterpriseProjectManagement.Domain.Entities;
 using EnterpriseProjectManagement.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -13,10 +17,20 @@ namespace EnterpriseProjectManagement.Api.Controllers;
 public class ProjectsController : ControllerBase
 {
     private readonly IProjectService _projectService;
+    private readonly IActivityLogService _activityLogService;
+    private readonly INotificationService _notificationService;
+    private readonly IRepository<User> _userRepository;
 
-    public ProjectsController(IProjectService projectService)
+    public ProjectsController(
+        IProjectService projectService,
+        IActivityLogService activityLogService,
+        INotificationService notificationService,
+        IRepository<User> userRepository)
     {
         _projectService = projectService;
+        _activityLogService = activityLogService;
+        _notificationService = notificationService;
+        _userRepository = userRepository;
     }
 
     private Guid GetCurrentUserId()
@@ -49,6 +63,13 @@ public class ProjectsController : ControllerBase
         {
             var userId = GetCurrentUserId();
             var project = await _projectService.CreateProjectAsync(userId, request, cancellationToken);
+            await _activityLogService.LogAsync(
+                project.Id,
+                userId,
+                "project_created",
+                project.Code,
+                $"Khởi tạo dự án \"{project.Name}\"",
+                cancellationToken);
             return CreatedAtAction(nameof(GetProjectById), new { id = project.Id }, project);
         }
         catch (InvalidOperationException ex)
@@ -83,7 +104,33 @@ public class ProjectsController : ControllerBase
     {
         try
         {
+            var actorId = GetCurrentUserId();
             await _projectService.AddMemberAsync(id, email, role, cancellationToken);
+            var project = await _projectService.GetProjectByIdAsync(id, cancellationToken);
+            var normalizedEmail = email.Trim().ToLowerInvariant();
+            var invitedUsers = await _userRepository.FindAsync(u => u.Email.ToLower() == normalizedEmail, cancellationToken);
+            var invitedUser = invitedUsers.FirstOrDefault();
+
+            await _activityLogService.LogAsync(
+                id,
+                actorId,
+                "member_added",
+                project?.Code,
+                $"Mời {invitedUser?.FullName ?? email} tham gia dự án ({role})",
+                cancellationToken);
+
+            if (invitedUser != null && invitedUser.Id != actorId && project != null)
+            {
+                await _notificationService.CreateNotificationAsync(
+                    invitedUser.Id,
+                    "Bạn được mời vào dự án mới",
+                    $"Bạn đã được thêm vào dự án \"{project.Name}\" ({project.Code}).",
+                    "member_added",
+                    $"/projects/{project.Id}",
+                    actorId,
+                    cancellationToken);
+            }
+
             return Ok(new { message = "Đã thêm thành viên vào dự án thành công." });
         }
         catch (KeyNotFoundException ex)
@@ -94,6 +141,13 @@ public class ProjectsController : ControllerBase
         {
             return BadRequest(new { message = ex.Message });
         }
+    }
+
+    [HttpGet("{id:guid}/activities")]
+    public async Task<IActionResult> GetProjectActivities(Guid id, [FromQuery] int limit = 40, CancellationToken cancellationToken = default)
+    {
+        var items = await _activityLogService.GetProjectActivitiesAsync(id, limit, cancellationToken);
+        return Ok(items);
     }
 
     [HttpGet("{id:guid}/analytics")]
