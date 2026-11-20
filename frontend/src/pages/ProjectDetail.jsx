@@ -154,13 +154,14 @@ export default function ProjectDetail() {
       if (timeframeFilter.endDate) params.append('endDate', timeframeFilter.endDate);
       const healthQuery = params.toString() ? `?${params.toString()}` : '';
 
-      const [projRes, tasksRes, analyticsRes, notesRes, healthRes, scheduleRes] = await Promise.all([
+      const [projRes, tasksRes, analyticsRes, notesRes, healthRes, scheduleRes, activitiesRes] = await Promise.all([
         api.get(`/projects/${id}`),
         api.get(`/tasks/project/${id}`),
         api.get(`/projects/${id}/analytics`),
         api.get(`/meetingnotes/project/${id}`),
         api.get(`/status-reports/project/${id}${healthQuery}`),
-        api.get(`/projects/${id}/schedule`)
+        api.get(`/projects/${id}/schedule`),
+        api.get(`/projects/${id}/activities`)
       ]);
       setProject(projRes.data);
       setTasks(tasksRes.data);
@@ -168,6 +169,7 @@ export default function ProjectDetail() {
       setNotes(notesRes.data);
       setHealthOverview(healthRes.data);
       if (scheduleRes) setScheduleData(scheduleRes.data);
+      if (activitiesRes) setActivities(activitiesRes.data || []);
     } catch (err) {
       console.error('Lỗi tải dữ liệu dự án:', err);
     } finally {
