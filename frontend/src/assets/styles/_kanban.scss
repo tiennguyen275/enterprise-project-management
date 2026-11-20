@@ -70,17 +70,23 @@
 
   .tabs-bar {
     display: flex;
-    gap: 0.5rem;
+    gap: 0.35rem;
     border-bottom: 2px solid $border-color;
     margin-bottom: 1.5rem;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+    &::-webkit-scrollbar {
+      display: none;
+    }
 
     .tab-btn {
       background: transparent;
       border: none;
       border-bottom: 2.5px solid transparent;
-      padding: 0.75rem 1.25rem;
-      font-size: 0.9375rem;
+      padding: 0.7rem 1.15rem;
+      font-size: 0.875rem;
       font-weight: 600;
       color: $text-muted;
       cursor: pointer;
@@ -89,16 +95,19 @@
       gap: 0.5rem;
       transition: $transition-fast;
       margin-bottom: -2px;
+      white-space: nowrap;
+      flex-shrink: 0;
 
       &:hover {
         color: $primary;
+        background: rgba(37, 99, 235, 0.03);
       }
 
       &.active {
         color: $primary;
         border-bottom-color: $primary;
         font-weight: 700;
-        background: rgba(37, 99, 235, 0.05);
+        background: rgba(37, 99, 235, 0.06);
         border-top-left-radius: $radius-sm;
         border-top-right-radius: $radius-sm;
       }

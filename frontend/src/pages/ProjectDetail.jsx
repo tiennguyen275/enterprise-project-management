@@ -1420,33 +1420,53 @@ export default function ProjectDetail() {
 {activeTab === 'gantt' && (
           <div className="gantt-cpm-layout">
             <div className="cpm-summary-grid">
-              <div className="cpm-stat-card">
-                <span className="stat-title">Tổng Thời Lượng Dự Án</span>
+              <div className="cpm-stat-card card-duration">
+                <div className="card-top-header">
+                  <span className="stat-title">Tổng Thời Lượng Dự Án</span>
+                  <div className="stat-icon-badge badge-duration">
+                    <AccessTimeIcon fontSize="small" />
+                  </div>
+                </div>
                 <strong className="stat-val duration-text">{scheduleData?.totalProjectDays || 0} ngày</strong>
                 <span className="stat-hint">Tính từ ngày bắt đầu dự án</span>
               </div>
-              <div className="cpm-stat-card">
-                <span className="stat-title">Ngày Hoàn Thành Dự Kiến</span>
+              <div className="cpm-stat-card card-projected">
+                <div className="card-top-header">
+                  <span className="stat-title">Ngày Hoàn Thành Dự Kiến</span>
+                  <div className="stat-icon-badge badge-projected">
+                    <CalendarTodayOutlinedIcon fontSize="small" />
+                  </div>
+                </div>
                 <strong className="stat-val projected-text">
                   {scheduleData?.projectedEndDate ? new Date(scheduleData.projectedEndDate).toLocaleDateString('vi-VN') : '---'}
                 </strong>
                 <span className="stat-hint">Thời điểm cán đích theo đường găng</span>
               </div>
-              <div className="cpm-stat-card">
-                <span className="stat-title">Công Việc Thuộc Đường Găng</span>
+              <div className="cpm-stat-card card-critical">
+                <div className="card-top-header">
+                  <span className="stat-title">Công Việc Thuộc Đường Găng</span>
+                  <div className="stat-icon-badge badge-critical-accent">
+                    <WarningAmberOutlinedIcon fontSize="small" />
+                  </div>
+                </div>
                 <strong className="stat-val critical-text">{scheduleData?.criticalTasksCount || 0} việc</strong>
                 <span className="stat-hint">Độ trôi (Total Float) = 0 ngày</span>
               </div>
-              <div className="cpm-stat-card">
-                <span className="stat-title">Số Lượng Ràng Buộc (FS)</span>
-                <strong className="stat-val">{scheduleData?.dependencies?.length || 0} liên kết</strong>
+              <div className="cpm-stat-card card-deps">
+                <div className="card-top-header">
+                  <span className="stat-title">Số Lượng Ràng Buộc (FS)</span>
+                  <div className="stat-icon-badge badge-deps">
+                    <AccountTreeOutlinedIcon fontSize="small" />
+                  </div>
+                </div>
+                <strong className="stat-val deps-text">{scheduleData?.dependencies?.length || 0} liên kết</strong>
                 <span className="stat-hint">Quan hệ hoàn thành - bắt đầu</span>
               </div>
             </div>
 
             <div className="cpm-action-toolbar">
               <div className="toolbar-info">
-                <span>Chú giải:</span>
+                <span className="legend-label">Chú giải:</span>
                 <span className="critical-legend">Đường găng (Bắt buộc đúng hạn)</span>
                 <span className="float-legend">Có thời gian dự trữ (Slack)</span>
               </div>
@@ -1498,16 +1518,18 @@ export default function ProjectDetail() {
 
                       return (
                         <tr key={item.taskId} className={item.isCritical ? 'is-critical-row' : ''}>
-                          <td><strong>{item.taskCode}</strong></td>
                           <td>
-                            <div style={{ fontWeight: 600 }}>{item.title}</div>
+                            <span className="task-code-badge">{item.taskCode}</span>
+                          </td>
+                          <td>
+                            <div className="task-title-text">{item.title}</div>
                             {item.assigneeName && (
-                              <small style={{ color: '#64748b' }}>Phụ trách: {item.assigneeName}</small>
+                              <small className="task-assignee-text">Phụ trách: {item.assigneeName}</small>
                             )}
                           </td>
-                          <td className="col-center">{item.durationDays} ngày</td>
-                          <td className="col-center">N{item.earlyStartDay} - N{item.earlyFinishDay}</td>
-                          <td className="col-center">N{item.lateStartDay} - N{item.lateFinishDay}</td>
+                          <td className="col-center tabular-text">{item.durationDays} ngày</td>
+                          <td className="col-center tabular-text">N{item.earlyStartDay} - N{item.earlyFinishDay}</td>
+                          <td className="col-center tabular-text">N{item.lateStartDay} - N{item.lateFinishDay}</td>
                           <td className="col-center">
                             <span className={`float-pill ${item.isCritical ? 'zero-float' : ''}`}>
                               {item.totalFloatDays} ngày
@@ -1517,7 +1539,7 @@ export default function ProjectDetail() {
                             {item.isCritical ? (
                               <span className="badge-critical">Đường găng</span>
                             ) : (
-                              <span className="badge-normal">Dự trữ</span>
+                              <span className="badge-normal">Dự trữ ({item.totalFloatDays}d)</span>
                             )}
                           </td>
                           <td className="gantt-bar-cell">
@@ -1543,19 +1565,53 @@ export default function ProjectDetail() {
             </div>
 
             <div className="dependencies-card">
-              <h4>Danh Sách Ràng Buộc Thứ Tự Thực Hiện (Precedence Relationships)</h4>
-              <p>Mô hình quan hệ Finish-to-Start (FS): Công việc sau chỉ được bắt đầu sau khi công việc trước đã hoàn tất.</p>
+              <div className="deps-card-header">
+                <div>
+                  <h4>Danh Sách Ràng Buộc Thứ Tự Thực Hiện (Precedence Relationships)</h4>
+                  <p>Mô hình quan hệ Finish-to-Start (FS): Công việc sau chỉ được bắt đầu sau khi công việc trước đã hoàn tất.</p>
+                </div>
+                {scheduleData?.dependencies?.length > 0 && (
+                  <button
+                    type="button"
+                    className="btn-add-dep-mini"
+                    onClick={() => {
+                      setDepError('');
+                      setShowDependencyModal(true);
+                    }}
+                  >
+                    <AddIcon fontSize="small" />
+                    <span>Thêm ràng buộc</span>
+                  </button>
+                )}
+              </div>
 
               {(!scheduleData?.dependencies || scheduleData.dependencies.length === 0) ? (
-                <span className="no-deps-text">Chưa có ràng buộc phụ thuộc nào giữa các công việc trong dự án này.</span>
+                <div className="empty-deps-box">
+                  <AccountTreeOutlinedIcon className="empty-deps-icon" />
+                  <div className="empty-deps-title">Chưa có ràng buộc phụ thuộc nào</div>
+                  <div className="empty-deps-desc">
+                    Tạo quan hệ Finish-to-Start (FS) để hệ thống tự động tính toán đường găng (CPM) và ngày hoàn thành dự án.
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-add-dep-empty"
+                    onClick={() => {
+                      setDepError('');
+                      setShowDependencyModal(true);
+                    }}
+                  >
+                    <AddIcon fontSize="small" />
+                    <span>Thêm ràng buộc đầu tiên</span>
+                  </button>
+                </div>
               ) : (
                 <div className="dep-list">
                   {scheduleData.dependencies.map((dep) => (
                     <div key={dep.id} className="dep-chip">
-                      <strong>{dep.predecessorCode}</strong>
+                      <span className="chip-code">{dep.predecessorCode}</span>
                       <span className="dep-arrow">➔</span>
-                      <strong>{dep.successorCode}</strong>
-                      {dep.lagDays > 0 && <small style={{ color: '#64748b' }}>(Lag: +{dep.lagDays}d)</small>}
+                      <span className="chip-code">{dep.successorCode}</span>
+                      {dep.lagDays > 0 && <span className="chip-lag">+{dep.lagDays} ngày</span>}
                       <button
                         type="button"
                         className="btn-del-dep"
