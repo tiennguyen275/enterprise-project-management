@@ -1,6 +1,6 @@
 ---
 description: Quy tắc bắt buộc tự động chạy 2 vòng Review (R1, R2) + vòng code-review trước mọi lần Merge hoặc Push
-globs: ["**/*"]
+globs: "**/*"
 ---
 
 # Quy Tắc Tự Động Review Trước Khi Merge / Push (Zero-Prompt Review Gate)

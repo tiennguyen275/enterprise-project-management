@@ -1,6 +1,6 @@
 ---
 description: Impeccable UI/UX Design Rules & Anti-Slop Linter (inspired by pbakaus/impeccable)
-globs: ["frontend/src/**/*.jsx", "frontend/src/**/*.scss", "backend/**/*.cs"]
+globs: "frontend/src/**/*.jsx, frontend/src/**/*.scss, backend/**/*.cs"
 ---
 
 # Impeccable UI & Clean Code Rules
