@@ -55,6 +55,20 @@ export default function GlobalSearchModal({ open, onClose }) {
     return () => clearTimeout(timer);
   }, [open]);
 
+  const updateQuery = (val, shouldFocus = false) => {
+    setQuery(val);
+    if (!val.trim()) {
+      setResults({ projects: [], tasks: [], users: [] });
+      setLoading(false);
+      setActiveIndex(0);
+    } else {
+      setLoading(true);
+    }
+    if (shouldFocus) {
+      inputRef.current?.focus();
+    }
+  };
+
   useEffect(() => {
     if (!open) return undefined;
     const trimmed = query.trim();
@@ -64,7 +78,6 @@ export default function GlobalSearchModal({ open, onClose }) {
 
     let isActive = true;
     const timer = setTimeout(() => {
-      setLoading(true);
       api.get('/search', { params: { q: trimmed, limit: 6 } })
         .then((res) => {
           if (isActive) {
@@ -156,15 +169,7 @@ export default function GlobalSearchModal({ open, onClose }) {
             ref={inputRef}
             type="text"
             value={query}
-            onChange={(e) => {
-              const val = e.target.value;
-              setQuery(val);
-              if (!val.trim()) {
-                setResults({ projects: [], tasks: [], users: [] });
-                setLoading(false);
-                setActiveIndex(0);
-              }
-            }}
+            onChange={(e) => updateQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Tìm dự án, mã công việc, nhân sự (hỗ trợ không dấu)..."
           />
@@ -172,13 +177,7 @@ export default function GlobalSearchModal({ open, onClose }) {
             <button
               type="button"
               className="btn-clear-query"
-              onClick={() => {
-                setQuery('');
-                setResults({ projects: [], tasks: [], users: [] });
-                setLoading(false);
-                setActiveIndex(0);
-                inputRef.current?.focus();
-              }}
+              onClick={() => updateQuery('', true)}
               title="Xóa từ khóa"
             >
               <CloseIcon style={{ fontSize: 16 }} />
@@ -204,7 +203,7 @@ export default function GlobalSearchModal({ open, onClose }) {
                         key={term}
                         type="button"
                         className="recent-chip"
-                        onClick={() => setQuery(term)}
+                        onClick={() => updateQuery(term, true)}
                       >
                         <HistoryIcon style={{ fontSize: 14 }} />
                         <span>{term}</span>
