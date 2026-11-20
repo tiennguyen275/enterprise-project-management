@@ -14,9 +14,20 @@ import CheckCircleOutlineOutlinedIcon from '@mui/icons-material/CheckCircleOutli
 import ForgotPasswordModal from '../components/ForgotPasswordModal';
 
 export default function Login() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState(() => {
+    return localStorage.getItem('epms_remember_me') === 'true'
+      ? (localStorage.getItem('epms_saved_email') || '')
+      : '';
+  });
+  const [password, setPassword] = useState(() => {
+    return localStorage.getItem('epms_remember_me') === 'true'
+      ? (localStorage.getItem('epms_saved_password') || '')
+      : '';
+  });
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(() => {
+    return localStorage.getItem('epms_remember_me') === 'true';
+  });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
@@ -29,6 +40,15 @@ export default function Login() {
     setLoading(true);
     try {
       await login(email, password);
+      if (rememberMe) {
+        localStorage.setItem('epms_remember_me', 'true');
+        localStorage.setItem('epms_saved_email', email);
+        localStorage.setItem('epms_saved_password', password);
+      } else {
+        localStorage.removeItem('epms_remember_me');
+        localStorage.removeItem('epms_saved_email');
+        localStorage.removeItem('epms_saved_password');
+      }
       navigate('/');
     } catch (err) {
       setError(err.response?.data?.message || 'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.');
@@ -141,6 +161,83 @@ export default function Login() {
             <p>Đăng nhập vào không gian làm việc của bạn</p>
           </div>
 
+          {error && (
+            <div className="alert-error" style={{ marginBottom: '1rem' }}>
+              <ErrorOutlineOutlinedIcon fontSize="small" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="auth-form">
+            <div className="form-group">
+              <label>Email công vụ</label>
+              <div className="input-with-icon">
+                <EmailOutlinedIcon fontSize="small" className="input-icon" />
+                <input
+                  type="email"
+                  required
+                  placeholder="tennguoidung@congty.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="email"
+                />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label>Mật khẩu</label>
+              <div className="input-with-icon">
+                <LockOutlinedIcon fontSize="small" className="input-icon" />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                />
+                <button
+                  type="button"
+                  className="password-toggle-btn"
+                  onClick={() => setShowPassword(!showPassword)}
+                  title={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                >
+                  {showPassword ? (
+                    <VisibilityOffOutlinedIcon fontSize="small" />
+                  ) : (
+                    <VisibilityOutlinedIcon fontSize="small" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <div className="form-options-row">
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                />
+                <span>Ghi nhớ tài khoản</span>
+              </label>
+              <button
+                type="button"
+                className="forgot-link"
+                onClick={() => setIsForgotPasswordOpen(true)}
+              >
+                Quên mật khẩu?
+              </button>
+            </div>
+
+            <button type="submit" className="btn-submit" disabled={loading}>
+              {loading ? 'Đang xác thực...' : 'Đăng Nhập'}
+            </button>
+          </form>
+
+          <div className="auth-divider">
+            <span>HOẶC TIẾP TỤC VỚI</span>
+          </div>
+
           <button
             type="button"
             className="btn-google-login"
@@ -167,74 +264,6 @@ export default function Login() {
             </svg>
             <span>Đăng nhập với Google</span>
           </button>
-
-          <div className="auth-divider">
-            <span>HOẶC TIẾP TỤC VỚI EMAIL</span>
-          </div>
-
-          {error && (
-            <div className="alert-error" style={{ marginBottom: '1rem' }}>
-              <ErrorOutlineOutlinedIcon fontSize="small" />
-              <span>{error}</span>
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="auth-form">
-            <div className="form-group">
-              <label>Email công vụ</label>
-              <div className="input-with-icon">
-                <EmailOutlinedIcon fontSize="small" className="input-icon" />
-                <input
-                  type="email"
-                  required
-                  placeholder="tennguoidung@congty.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  autoComplete="email"
-                />
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label>
-                <span>Mật khẩu</span>
-                <button
-                  type="button"
-                  className="forgot-link"
-                  onClick={() => setIsForgotPasswordOpen(true)}
-                >
-                  Quên mật khẩu?
-                </button>
-              </label>
-              <div className="input-with-icon">
-                <LockOutlinedIcon fontSize="small" className="input-icon" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="current-password"
-                />
-                <button
-                  type="button"
-                  className="password-toggle-btn"
-                  onClick={() => setShowPassword(!showPassword)}
-                  title={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
-                >
-                  {showPassword ? (
-                    <VisibilityOffOutlinedIcon fontSize="small" />
-                  ) : (
-                    <VisibilityOutlinedIcon fontSize="small" />
-                  )}
-                </button>
-              </div>
-            </div>
-
-            <button type="submit" className="btn-submit" disabled={loading}>
-              {loading ? 'Đang xác thực...' : 'Đăng Nhập'}
-            </button>
-          </form>
 
           <div className="auth-footer">
             <span>Chưa có tài khoản công vụ? </span>
