@@ -59,6 +59,15 @@ export const AuthProvider = ({ children }) => {
     return res.data;
   };
 
+  const updateUser = (partialUser) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, ...partialUser };
+      localStorage.setItem('user', JSON.stringify(next));
+      return next;
+    });
+  };
+
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -66,7 +75,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, register, googleLogin, forgotPassword, verifyOtp, resetPassword, logout, loading: false }}>
+    <AuthContext.Provider value={{ user, login, register, googleLogin, forgotPassword, verifyOtp, resetPassword, updateUser, logout, loading: false }}>
       {children}
     </AuthContext.Provider>
   );

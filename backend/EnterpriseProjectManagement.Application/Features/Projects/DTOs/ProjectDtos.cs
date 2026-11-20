@@ -22,7 +22,8 @@ public record ProjectMemberDto(
     Guid UserId,
     string FullName,
     string Email,
-    ProjectRole Role
+    ProjectRole Role,
+    string? AvatarUrl = null
 );
 
 public record ProjectResponseDto(

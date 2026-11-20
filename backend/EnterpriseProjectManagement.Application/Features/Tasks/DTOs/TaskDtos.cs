@@ -55,7 +55,8 @@ public record TaskResponseDto(
     Guid? ParentTaskId,
     DateTime CreatedAt,
     List<SubTaskSummaryDto> SubTasks,
-    List<TaskCommentDto> Comments
+    List<TaskCommentDto> Comments,
+    string? AssigneeAvatarUrl = null
 );
 
 public record MyTaskResponseDto(

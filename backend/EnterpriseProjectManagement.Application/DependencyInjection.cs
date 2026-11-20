@@ -6,6 +6,7 @@ using EnterpriseProjectManagement.Application.Features.Projects.Services;
 using EnterpriseProjectManagement.Application.Features.Schedule.Services;
 using EnterpriseProjectManagement.Application.Features.StatusReports.Services;
 using EnterpriseProjectManagement.Application.Features.Tasks.Services;
+using EnterpriseProjectManagement.Application.Features.Users.Services;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace EnterpriseProjectManagement.Application;
@@ -22,6 +23,7 @@ public static class DependencyInjection
         services.AddScoped<IAiAssistantService, AiAssistantService>();
         services.AddScoped<IProjectChatService, ProjectChatService>();
         services.AddScoped<IScheduleService, ScheduleService>();
+        services.AddScoped<IUserService, UserService>();
         return services;
     }
 }

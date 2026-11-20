@@ -6,6 +6,8 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import ProjectDetail from './pages/ProjectDetail';
 import MyTasks from './pages/MyTasks';
+import UsersDirectory from './pages/UsersDirectory';
+import ProfileSettings from './pages/ProfileSettings';
 
 const ProtectedRoute = ({ children }) => {
   const { user } = useAuth();
@@ -35,6 +37,22 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <MyTasks />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/users"
+            element={
+              <ProtectedRoute>
+                <UsersDirectory />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <ProfileSettings />
               </ProtectedRoute>
             }
           />
