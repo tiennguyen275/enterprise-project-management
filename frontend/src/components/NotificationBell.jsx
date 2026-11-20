@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import * as signalR from '@microsoft/signalr';
 import api from '../services/api';
+import { createUserNotificationHubConnection } from '../services/signalr';
 import UserAvatar from './UserAvatar';
 import NotificationsNoneOutlinedIcon from '@mui/icons-material/NotificationsNoneOutlined';
 import DoneAllIcon from '@mui/icons-material/DoneAll';
@@ -9,6 +9,7 @@ import DoneAllIcon from '@mui/icons-material/DoneAll';
 export default function NotificationBell() {
   const navigate = useNavigate();
   const containerRef = useRef(null);
+  const seenIdsRef = useRef(new Set());
   const [open, setOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [items, setItems] = useState([]);
@@ -18,8 +19,10 @@ export default function NotificationBell() {
     api.get('/notifications', { params: { limit: 20 } })
       .then((res) => {
         if (!isMounted || !res.data) return;
+        const loaded = res.data.items || [];
+        seenIdsRef.current = new Set(loaded.map((n) => n.id));
         setUnreadCount(res.data.unreadCount || 0);
-        setItems(res.data.items || []);
+        setItems(loaded);
       })
       .catch((err) => {
         console.error('Lỗi tải thông báo:', err);
@@ -32,24 +35,19 @@ export default function NotificationBell() {
       };
     }
 
-    const connection = new signalR.HubConnectionBuilder()
-      .withUrl('http://localhost:5164/hubs/project', {
-        accessTokenFactory: () => localStorage.getItem('token') || '',
-      })
-      .withAutomaticReconnect([0, 2000, 5000, 10000])
-      .build();
-
-    connection.on('ReceiveUserNotification', (notification) => {
-      if (!isMounted || !notification) return;
+    const hub = createUserNotificationHubConnection((notification) => {
+      if (!isMounted || !notification?.id) return;
+      const isNew = !seenIdsRef.current.has(notification.id);
+      seenIdsRef.current.add(notification.id);
       setItems((prev) => [notification, ...prev.filter((x) => x.id !== notification.id)].slice(0, 25));
-      setUnreadCount((prev) => prev + 1);
+      if (isNew && !notification.isRead) {
+        setUnreadCount((prev) => prev + 1);
+      }
     });
-
-    connection.start().catch(() => {});
 
     return () => {
       isMounted = false;
-      connection.stop().catch(() => {});
+      hub.stop();
     };
   }, []);
 
@@ -149,3 +147,4 @@ export default function NotificationBell() {
     </div>
   );
 }
+

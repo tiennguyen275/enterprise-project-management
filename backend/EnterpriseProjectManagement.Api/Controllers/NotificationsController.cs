@@ -48,3 +48,4 @@ public class NotificationsController : ControllerBase
         return NoContent();
     }
 }
+

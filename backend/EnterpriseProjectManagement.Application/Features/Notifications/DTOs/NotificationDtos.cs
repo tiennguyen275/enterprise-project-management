@@ -16,3 +16,4 @@ public record NotificationsOverviewDto(
     int UnreadCount,
     IReadOnlyList<UserNotificationDto> Items
 );
+

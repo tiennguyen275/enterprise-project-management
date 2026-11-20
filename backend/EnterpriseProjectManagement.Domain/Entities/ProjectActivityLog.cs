@@ -12,3 +12,4 @@ public class ProjectActivityLog : BaseEntity
     public string? TargetCode { get; set; }
     public string Description { get; set; } = string.Empty;
 }
+

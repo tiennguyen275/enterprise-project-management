@@ -11,3 +11,4 @@ public record ProjectActivityLogDto(
     string Description,
     DateTime CreatedAt
 );
+

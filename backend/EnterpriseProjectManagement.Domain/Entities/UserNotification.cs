@@ -13,3 +13,4 @@ public class UserNotification : BaseEntity
     public string? ActorName { get; set; }
     public string? ActorAvatarUrl { get; set; }
 }
+

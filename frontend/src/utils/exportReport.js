@@ -13,11 +13,12 @@ const PRIORITY_LABELS = {
 };
 
 function escapeCsvCell(value) {
-  const str = value == null ? '' : String(value);
-  if (str.includes('"') || str.includes(',') || str.includes('\n')) {
-    return `"${str.replace(/"/g, '""')}"`;
+  const raw = value == null ? '' : String(value);
+  const safe = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
+  if (/[",\r\n]/.test(safe)) {
+    return `"${safe.replace(/"/g, '""')}"`;
   }
-  return str;
+  return safe;
 }
 
 function downloadCsvFile(filename, headers, rows) {
@@ -169,3 +170,4 @@ export function printExecutiveReport(project, tasks = [], healthOverview = null)
   win.focus();
   win.print();
 }
+

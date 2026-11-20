@@ -1,10 +1,8 @@
 using System.Security.Claims;
-using EnterpriseProjectManagement.Application.Common.Interfaces;
 using EnterpriseProjectManagement.Application.Features.Activities.Services;
 using EnterpriseProjectManagement.Application.Features.Notifications.Services;
 using EnterpriseProjectManagement.Application.Features.Projects.DTOs;
 using EnterpriseProjectManagement.Application.Features.Projects.Services;
-using EnterpriseProjectManagement.Domain.Entities;
 using EnterpriseProjectManagement.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -19,18 +17,15 @@ public class ProjectsController : ControllerBase
     private readonly IProjectService _projectService;
     private readonly IActivityLogService _activityLogService;
     private readonly INotificationService _notificationService;
-    private readonly IRepository<User> _userRepository;
 
     public ProjectsController(
         IProjectService projectService,
         IActivityLogService activityLogService,
-        INotificationService notificationService,
-        IRepository<User> userRepository)
+        INotificationService notificationService)
     {
         _projectService = projectService;
         _activityLogService = activityLogService;
         _notificationService = notificationService;
-        _userRepository = userRepository;
     }
 
     private Guid GetCurrentUserId()
@@ -105,24 +100,21 @@ public class ProjectsController : ControllerBase
         try
         {
             var actorId = GetCurrentUserId();
-            await _projectService.AddMemberAsync(id, email, role, cancellationToken);
+            var addedMember = await _projectService.AddMemberAsync(id, email, role, cancellationToken);
             var project = await _projectService.GetProjectByIdAsync(id, cancellationToken);
-            var normalizedEmail = email.Trim().ToLowerInvariant();
-            var invitedUsers = await _userRepository.FindAsync(u => u.Email.ToLower() == normalizedEmail, cancellationToken);
-            var invitedUser = invitedUsers.FirstOrDefault();
 
             await _activityLogService.LogAsync(
                 id,
                 actorId,
                 "member_added",
                 project?.Code,
-                $"Mời {invitedUser?.FullName ?? email} tham gia dự án ({role})",
+                $"Mời {addedMember.FullName} tham gia dự án ({role})",
                 cancellationToken);
 
-            if (invitedUser != null && invitedUser.Id != actorId && project != null)
+            if (addedMember.UserId != actorId && project != null)
             {
                 await _notificationService.CreateNotificationAsync(
-                    invitedUser.Id,
+                    addedMember.UserId,
                     "Bạn được mời vào dự án mới",
                     $"Bạn đã được thêm vào dự án \"{project.Name}\" ({project.Code}).",
                     "member_added",
@@ -146,8 +138,16 @@ public class ProjectsController : ControllerBase
     [HttpGet("{id:guid}/activities")]
     public async Task<IActionResult> GetProjectActivities(Guid id, [FromQuery] int limit = 40, CancellationToken cancellationToken = default)
     {
-        var items = await _activityLogService.GetProjectActivitiesAsync(id, limit, cancellationToken);
-        return Ok(items);
+        try
+        {
+            var requesterId = GetCurrentUserId();
+            var items = await _activityLogService.GetProjectActivitiesAsync(id, requesterId, limit, cancellationToken);
+            return Ok(items);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+        }
     }
 
     [HttpGet("{id:guid}/analytics")]
