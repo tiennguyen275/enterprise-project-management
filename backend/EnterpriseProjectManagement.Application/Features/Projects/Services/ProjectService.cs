@@ -12,7 +12,8 @@ public interface IProjectService
     Task<ProjectResponseDto> CreateProjectAsync(Guid creatorUserId, CreateProjectRequestDto request, CancellationToken cancellationToken = default);
     Task<ProjectResponseDto> UpdateProjectAsync(Guid projectId, UpdateProjectRequestDto request, CancellationToken cancellationToken = default);
     Task DeleteProjectAsync(Guid projectId, CancellationToken cancellationToken = default);
-    Task AddMemberAsync(Guid projectId, string email, ProjectRole role, CancellationToken cancellationToken = default);
+    Task<ProjectMemberDto> AddMemberAsync(Guid projectId, string email, ProjectRole role, CancellationToken cancellationToken = default);
+    Task<bool> CanUserAccessProjectAsync(Guid projectId, Guid userId, CancellationToken cancellationToken = default);
     Task<ProjectAnalyticsDto> GetProjectAnalyticsAsync(Guid projectId, CancellationToken cancellationToken = default);
 }
 
@@ -222,7 +223,7 @@ public class ProjectService : IProjectService
         }
     }
 
-    public async Task AddMemberAsync(Guid projectId, string email, ProjectRole role, CancellationToken cancellationToken = default)
+    public async Task<ProjectMemberDto> AddMemberAsync(Guid projectId, string email, ProjectRole role, CancellationToken cancellationToken = default)
     {
         var users = await _userRepository.FindAsync(u => u.Email.ToLower() == email.Trim().ToLower(), cancellationToken);
         var user = users.FirstOrDefault();
@@ -246,6 +247,18 @@ public class ProjectService : IProjectService
 
         await _memberRepository.AddAsync(member, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return new ProjectMemberDto(user.Id, user.FullName, user.Email, role, user.AvatarUrl);
+    }
+
+    public async Task<bool> CanUserAccessProjectAsync(Guid projectId, Guid userId, CancellationToken cancellationToken = default)
+    {
+        var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
+        if (user == null || !user.IsActive) return false;
+        if (user.SystemRole == SystemRole.Admin) return true;
+
+        var memberships = await _memberRepository.FindAsync(m => m.ProjectId == projectId && m.UserId == userId, cancellationToken);
+        return memberships.Any();
     }
 
     public async Task<ProjectAnalyticsDto> GetProjectAnalyticsAsync(Guid projectId, CancellationToken cancellationToken = default)

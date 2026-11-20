@@ -1,5 +1,7 @@
 using System.Security.Claims;
 using EnterpriseProjectManagement.Application.Common.Interfaces;
+using EnterpriseProjectManagement.Application.Features.Activities.Services;
+using EnterpriseProjectManagement.Application.Features.Notifications.Services;
 using EnterpriseProjectManagement.Application.Features.Tasks.DTOs;
 using EnterpriseProjectManagement.Application.Features.Tasks.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -14,11 +16,19 @@ public class TasksController : ControllerBase
 {
     private readonly ITaskService _taskService;
     private readonly IRealtimeNotificationService _realtimeNotificationService;
+    private readonly INotificationService _notificationService;
+    private readonly IActivityLogService _activityLogService;
 
-    public TasksController(ITaskService taskService, IRealtimeNotificationService realtimeNotificationService)
+    public TasksController(
+        ITaskService taskService,
+        IRealtimeNotificationService realtimeNotificationService,
+        INotificationService notificationService,
+        IActivityLogService activityLogService)
     {
         _taskService = taskService;
         _realtimeNotificationService = realtimeNotificationService;
+        _notificationService = notificationService;
+        _activityLogService = activityLogService;
     }
 
     private Guid GetCurrentUserId()
@@ -73,6 +83,24 @@ public class TasksController : ControllerBase
             var userId = GetCurrentUserId();
             var task = await _taskService.CreateTaskAsync(userId, request, cancellationToken);
             await BroadcastTaskEventAsync(task, "created", cancellationToken);
+            await _activityLogService.LogAsync(
+                task.ProjectId,
+                userId,
+                "task_created",
+                task.TaskCode,
+                $"Tạo công việc \"{task.Title}\"",
+                cancellationToken);
+            if (task.AssigneeId.HasValue && task.AssigneeId.Value != userId)
+            {
+                await _notificationService.CreateNotificationAsync(
+                    task.AssigneeId.Value,
+                    "Bạn được giao công việc mới",
+                    $"[{task.TaskCode}] {task.Title}",
+                    "task_assigned",
+                    $"/projects/{task.ProjectId}?taskId={task.Id}",
+                    userId,
+                    cancellationToken);
+            }
             return CreatedAtAction(nameof(GetTaskById), new { id = task.Id }, task);
         }
         catch (KeyNotFoundException ex)
@@ -90,8 +118,28 @@ public class TasksController : ControllerBase
     {
         try
         {
+            var userId = GetCurrentUserId();
+            var previous = await _taskService.GetTaskByIdAsync(id, cancellationToken);
             var task = await _taskService.UpdateTaskAsync(id, request, cancellationToken);
             await BroadcastTaskEventAsync(task, "updated", cancellationToken);
+            await _activityLogService.LogAsync(
+                task.ProjectId,
+                userId,
+                "task_updated",
+                task.TaskCode,
+                $"Cập nhật công việc \"{task.Title}\" (Trạng thái: {task.Status})",
+                cancellationToken);
+            if (task.AssigneeId.HasValue && task.AssigneeId.Value != userId && previous?.AssigneeId != task.AssigneeId)
+            {
+                await _notificationService.CreateNotificationAsync(
+                    task.AssigneeId.Value,
+                    "Bạn được phân công công việc",
+                    $"[{task.TaskCode}] {task.Title}",
+                    "task_assigned",
+                    $"/projects/{task.ProjectId}?taskId={task.Id}",
+                    userId,
+                    cancellationToken);
+            }
             return Ok(task);
         }
         catch (KeyNotFoundException ex)
@@ -142,6 +190,24 @@ public class TasksController : ControllerBase
             if (existing != null)
             {
                 await _realtimeNotificationService.NotifyProjectDataChangedAsync(existing.ProjectId, "comment_added", cancellationToken);
+                await _activityLogService.LogAsync(
+                    existing.ProjectId,
+                    userId,
+                    "comment_added",
+                    existing.TaskCode,
+                    $"Bình luận trên \"{existing.Title}\"",
+                    cancellationToken);
+                if (existing.AssigneeId.HasValue && existing.AssigneeId.Value != userId)
+                {
+                    await _notificationService.CreateNotificationAsync(
+                        existing.AssigneeId.Value,
+                        "Bình luận mới trên công việc của bạn",
+                        $"[{existing.TaskCode}] {request.Content}",
+                        "comment_added",
+                        $"/projects/{existing.ProjectId}?taskId={existing.Id}",
+                        userId,
+                        cancellationToken);
+                }
             }
             return Ok(comment);
         }

@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using EnterpriseProjectManagement.Application.Features.Activities.Services;
+using EnterpriseProjectManagement.Application.Features.Notifications.Services;
 using EnterpriseProjectManagement.Application.Features.Projects.DTOs;
 using EnterpriseProjectManagement.Application.Features.Projects.Services;
 using EnterpriseProjectManagement.Domain.Enums;
@@ -13,10 +15,17 @@ namespace EnterpriseProjectManagement.Api.Controllers;
 public class ProjectsController : ControllerBase
 {
     private readonly IProjectService _projectService;
+    private readonly IActivityLogService _activityLogService;
+    private readonly INotificationService _notificationService;
 
-    public ProjectsController(IProjectService projectService)
+    public ProjectsController(
+        IProjectService projectService,
+        IActivityLogService activityLogService,
+        INotificationService notificationService)
     {
         _projectService = projectService;
+        _activityLogService = activityLogService;
+        _notificationService = notificationService;
     }
 
     private Guid GetCurrentUserId()
@@ -49,6 +58,13 @@ public class ProjectsController : ControllerBase
         {
             var userId = GetCurrentUserId();
             var project = await _projectService.CreateProjectAsync(userId, request, cancellationToken);
+            await _activityLogService.LogAsync(
+                project.Id,
+                userId,
+                "project_created",
+                project.Code,
+                $"Khởi tạo dự án \"{project.Name}\"",
+                cancellationToken);
             return CreatedAtAction(nameof(GetProjectById), new { id = project.Id }, project);
         }
         catch (InvalidOperationException ex)
@@ -83,7 +99,30 @@ public class ProjectsController : ControllerBase
     {
         try
         {
-            await _projectService.AddMemberAsync(id, email, role, cancellationToken);
+            var actorId = GetCurrentUserId();
+            var addedMember = await _projectService.AddMemberAsync(id, email, role, cancellationToken);
+            var project = await _projectService.GetProjectByIdAsync(id, cancellationToken);
+
+            await _activityLogService.LogAsync(
+                id,
+                actorId,
+                "member_added",
+                project?.Code,
+                $"Mời {addedMember.FullName} tham gia dự án ({role})",
+                cancellationToken);
+
+            if (addedMember.UserId != actorId && project != null)
+            {
+                await _notificationService.CreateNotificationAsync(
+                    addedMember.UserId,
+                    "Bạn được mời vào dự án mới",
+                    $"Bạn đã được thêm vào dự án \"{project.Name}\" ({project.Code}).",
+                    "member_added",
+                    $"/projects/{project.Id}",
+                    actorId,
+                    cancellationToken);
+            }
+
             return Ok(new { message = "Đã thêm thành viên vào dự án thành công." });
         }
         catch (KeyNotFoundException ex)
@@ -93,6 +132,21 @@ public class ProjectsController : ControllerBase
         catch (InvalidOperationException ex)
         {
             return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("{id:guid}/activities")]
+    public async Task<IActionResult> GetProjectActivities(Guid id, [FromQuery] int limit = 40, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var requesterId = GetCurrentUserId();
+            var items = await _activityLogService.GetProjectActivitiesAsync(id, requesterId, limit, cancellationToken);
+            return Ok(items);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
         }
     }
 

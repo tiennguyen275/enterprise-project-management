@@ -20,6 +20,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<ProjectStatusReport> ProjectStatusReports => Set<ProjectStatusReport>();
     public DbSet<ProjectChatMessage> ProjectChatMessages => Set<ProjectChatMessage>();
     public DbSet<TaskDependency> TaskDependencies => Set<TaskDependency>();
+    public DbSet<UserNotification> UserNotifications => Set<UserNotification>();
+    public DbSet<ProjectActivityLog> ProjectActivityLogs => Set<ProjectActivityLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -34,6 +36,8 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<ProjectStatusReport>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<ProjectChatMessage>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<TaskDependency>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<UserNotification>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<ProjectActivityLog>().HasQueryFilter(e => !e.IsDeleted);
 
         modelBuilder.Entity<User>(entity =>
         {

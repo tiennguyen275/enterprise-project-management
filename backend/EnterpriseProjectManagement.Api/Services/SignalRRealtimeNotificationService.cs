@@ -27,5 +27,10 @@ public class SignalRRealtimeNotificationService : IRealtimeNotificationService
     {
         await _hubContext.Clients.Group(projectId.ToString()).SendAsync("ReceiveProjectDataChanged", new { Reason = reason }, cancellationToken);
     }
+
+    public async Task NotifyUserNotificationAsync(Guid userId, object notification, CancellationToken cancellationToken = default)
+    {
+        await _hubContext.Clients.Group($"user-{userId}").SendAsync("ReceiveUserNotification", notification, cancellationToken);
+    }
 }
 
