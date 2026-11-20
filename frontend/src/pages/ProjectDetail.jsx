@@ -9,6 +9,7 @@ import { useParams, Link } from 'react-router-dom';
 import api from '../services/api';
 import Navbar from '../components/Navbar';
 import FormattedAiText from '../components/FormattedAiText';
+import UserAvatar from '../components/UserAvatar';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import AddIcon from '@mui/icons-material/Add';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
@@ -991,7 +992,7 @@ export default function ProjectDetail() {
 
                               {task.assigneeName && (
                                 <div className="task-meta-due" style={{ color: '#2563eb', fontWeight: 600 }}>
-                                  <PeopleAltOutlinedIcon style={{ fontSize: 14 }} />
+                                  <UserAvatar name={task.assigneeName} avatarUrl={task.assigneeAvatarUrl} size="xs" />
                                   <span>{task.assigneeName}</span>
                                 </div>
                               )}
@@ -1799,6 +1800,17 @@ export default function ProjectDetail() {
             <div className="modal-card">
               <h2>Mời Thành Viên Vào Dự Án</h2>
               <p>Nhập email thành viên đã đăng ký tài khoản trên hệ thống</p>
+
+              {project.members?.length > 0 && (
+                <div className="project-members-strip">
+                  {project.members.map((m) => (
+                    <div key={m.userId} className="project-member-chip" title={m.email}>
+                      <UserAvatar name={m.fullName} email={m.email} avatarUrl={m.avatarUrl} size="xs" />
+                      <span>{m.fullName}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {memberError && (
                 <div className="alert-error">

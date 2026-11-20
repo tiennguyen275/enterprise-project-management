@@ -103,7 +103,7 @@ public class ProjectService : IProjectService
 
         var memberDtos = (from m in members
                           join u in users on m.UserId equals u.Id
-                          select new ProjectMemberDto(u.Id, u.FullName, u.Email, m.Role)).ToList();
+                          select new ProjectMemberDto(u.Id, u.FullName, u.Email, m.Role, u.AvatarUrl)).ToList();
 
         var totalTasks = tasks.Count;
         var completedTasks = tasks.Count(t => t.Status == ProjectTaskStatus.Done);

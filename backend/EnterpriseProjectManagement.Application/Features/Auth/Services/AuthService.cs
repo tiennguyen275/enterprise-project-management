@@ -55,7 +55,7 @@ public class AuthService : IAuthService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         var token = _jwtTokenGenerator.GenerateToken(newUser);
-        return new AuthResponseDto(newUser.Id, newUser.Email, newUser.FullName, token, DateTime.UtcNow.AddDays(7), newUser.SystemRole.ToString());
+        return new AuthResponseDto(newUser.Id, newUser.Email, newUser.FullName, token, DateTime.UtcNow.AddDays(7), newUser.SystemRole.ToString(), newUser.AvatarUrl);
     }
 
     public async Task<AuthResponseDto> LoginAsync(LoginRequestDto request, CancellationToken cancellationToken = default)
@@ -74,7 +74,7 @@ public class AuthService : IAuthService
         }
 
         var token = _jwtTokenGenerator.GenerateToken(user);
-        return new AuthResponseDto(user.Id, user.Email, user.FullName, token, DateTime.UtcNow.AddDays(7), user.SystemRole.ToString());
+        return new AuthResponseDto(user.Id, user.Email, user.FullName, token, DateTime.UtcNow.AddDays(7), user.SystemRole.ToString(), user.AvatarUrl);
     }
 
     public async Task<ForgotPasswordResponseDto> ForgotPasswordAsync(ForgotPasswordRequestDto request, CancellationToken cancellationToken = default)
@@ -156,6 +156,6 @@ public class AuthService : IAuthService
         }
 
         var token = _jwtTokenGenerator.GenerateToken(user);
-        return new AuthResponseDto(user.Id, user.Email, user.FullName, token, DateTime.UtcNow.AddDays(7), user.SystemRole.ToString());
+        return new AuthResponseDto(user.Id, user.Email, user.FullName, token, DateTime.UtcNow.AddDays(7), user.SystemRole.ToString(), user.AvatarUrl);
     }
 }

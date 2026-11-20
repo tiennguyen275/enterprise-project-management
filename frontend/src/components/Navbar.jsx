@@ -1,8 +1,10 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import UserAvatar from './UserAvatar';
 import FolderSpecialOutlinedIcon from '@mui/icons-material/FolderSpecialOutlined';
 import AssignmentOutlinedIcon from '@mui/icons-material/AssignmentOutlined';
+import PeopleOutlineOutlinedIcon from '@mui/icons-material/PeopleOutlineOutlined';
 import LogoutIcon from '@mui/icons-material/Logout';
 import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
 
@@ -12,10 +14,7 @@ export default function Navbar() {
 
   const isProjectsActive = location.pathname === '/' || location.pathname.startsWith('/projects');
   const isMyTasksActive = location.pathname === '/my-tasks';
-
-  const userInitial = user?.fullName
-    ? user.fullName.trim().charAt(0).toUpperCase()
-    : 'U';
+  const isUsersActive = location.pathname === '/users';
 
   return (
     <header className="navbar">
@@ -39,14 +38,21 @@ export default function Navbar() {
             <AssignmentOutlinedIcon style={{ fontSize: 18 }} />
             <span>Công việc của tôi</span>
           </Link>
+          <Link to="/users" className={`nav-link ${isUsersActive ? 'active' : ''}`}>
+            <PeopleOutlineOutlinedIcon style={{ fontSize: 18 }} />
+            <span>Nhân sự</span>
+          </Link>
         </nav>
       </div>
 
       <div className="nav-user">
-        <div className="user-profile-widget">
-          <div className="user-avatar-circle" title={user?.email || ''}>
-            {userInitial}
-          </div>
+        <Link to="/profile" className="user-profile-widget user-profile-link" title="Cài đặt hồ sơ cá nhân">
+          <UserAvatar
+            name={user?.fullName}
+            email={user?.email}
+            avatarUrl={user?.avatarUrl}
+            size="md"
+          />
           <div className="user-meta">
             <div className="user-name-row">
               <span className="user-name">{user?.fullName || 'Thành viên'}</span>
@@ -56,7 +62,7 @@ export default function Navbar() {
             </div>
             <span className="user-email">{user?.email || 'Thành viên tổ chức'}</span>
           </div>
-        </div>
+        </Link>
         <button onClick={logout} className="btn-logout" title="Đăng xuất khỏi hệ thống">
           <LogoutIcon fontSize="small" />
           <span>Thoát</span>

@@ -56,11 +56,11 @@ public class TaskService : ITaskService
             .Distinct()
             .ToList();
 
-        var userDict = new Dictionary<Guid, string>();
+        var userDict = new Dictionary<Guid, User>();
         if (userIds.Count > 0)
         {
             var users = await _userRepository.FindAsync(u => userIds.Contains(u.Id), cancellationToken);
-            userDict = users.ToDictionary(u => u.Id, u => u.FullName);
+            userDict = users.ToDictionary(u => u.Id, u => u);
         }
 
         var commentsByTask = comments
@@ -71,7 +71,7 @@ public class TaskService : ITaskService
                 g => g.Select(c => new TaskCommentDto(
                     c.Id,
                     c.UserId,
-                    userDict.TryGetValue(c.UserId, out var author) ? author : "Thành viên",
+                    userDict.TryGetValue(c.UserId, out var author) ? author.FullName : "Thành viên",
                     c.Content,
                     c.CreatedAt
                 )).ToList()
@@ -86,7 +86,7 @@ public class TaskService : ITaskService
                 .Select(s => new SubTaskSummaryDto(s.Id, s.TaskCode, s.Title, s.Status))
                 .ToList();
 
-            var assigneeName = task.AssigneeId.HasValue && userDict.TryGetValue(task.AssigneeId.Value, out var name) ? name : null;
+            var assigneeUser = task.AssigneeId.HasValue && userDict.TryGetValue(task.AssigneeId.Value, out var uObj) ? uObj : null;
             var taskComments = commentsByTask.TryGetValue(task.Id, out var cList) ? cList : new List<TaskCommentDto>();
 
             result.Add(new TaskResponseDto(
@@ -101,11 +101,12 @@ public class TaskService : ITaskService
                 task.EstimatedHours,
                 task.ActualHours,
                 task.AssigneeId,
-                assigneeName,
+                assigneeUser?.FullName,
                 task.ParentTaskId,
                 task.CreatedAt,
                 subTasks,
-                taskComments
+                taskComments,
+                assigneeUser?.AvatarUrl
             ));
         }
 
