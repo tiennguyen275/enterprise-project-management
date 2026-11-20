@@ -64,12 +64,39 @@ public class ProjectService : IProjectService
             ? await _taskRepository.FindAsync(t => projectIds.Contains(t.ProjectId) && t.ParentTaskId == null, cancellationToken)
             : Array.Empty<ProjectTask>();
 
+        var allMembers = projectIds.Count > 0
+            ? await _memberRepository.FindAsync(m => projectIds.Contains(m.ProjectId), cancellationToken)
+            : Array.Empty<ProjectMember>();
+
+        var memberUserIds = allMembers.Select(m => m.UserId).Distinct().ToList();
+        var memberUsers = memberUserIds.Count > 0
+            ? await _userRepository.FindAsync(u => memberUserIds.Contains(u.Id), cancellationToken)
+            : Array.Empty<User>();
+        var userMap = memberUsers.ToDictionary(u => u.Id, u => u);
+
+        var membersByProject = allMembers
+            .GroupBy(m => m.ProjectId)
+            .ToDictionary(
+                g => g.Key,
+                g => g
+                    .Where(m => userMap.ContainsKey(m.UserId))
+                    .Select(m =>
+                    {
+                        var u = userMap[m.UserId];
+                        return new ProjectMemberDto(u.Id, u.FullName, u.Email, m.Role, u.AvatarUrl);
+                    })
+                    .ToList()
+            );
+
         var result = new List<ProjectResponseDto>();
         foreach (var project in projects)
         {
             var projectTasks = tasks.Where(t => t.ProjectId == project.Id).ToList();
             var totalTasks = projectTasks.Count;
             var completedTasks = projectTasks.Count(t => t.Status == ProjectTaskStatus.Done);
+            var projectMembers = membersByProject.TryGetValue(project.Id, out var mList)
+                ? mList
+                : new List<ProjectMemberDto>();
 
             result.Add(new ProjectResponseDto(
                 project.Id,
@@ -82,7 +109,7 @@ public class ProjectService : IProjectService
                 project.CreatedAt,
                 totalTasks,
                 completedTasks,
-                new List<ProjectMemberDto>()
+                projectMembers
             ));
         }
 

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { matchesSearch } from '../utils/textSearch';
 import Navbar from '../components/Navbar';
 import UserAvatar from '../components/UserAvatar';
 import PeopleOutlineOutlinedIcon from '@mui/icons-material/PeopleOutlineOutlined';
@@ -15,10 +17,11 @@ import SecurityOutlinedIcon from '@mui/icons-material/SecurityOutlined';
 
 export default function UsersDirectory() {
   const { user: currentUser } = useAuth();
+  const [searchParams] = useSearchParams();
   const isAdmin = currentUser?.systemRole === 'Admin';
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(() => searchParams.get('q') || '');
   const [roleFilter, setRoleFilter] = useState('all');
   const [actionBusyId, setActionBusyId] = useState(null);
   const [feedback, setFeedback] = useState({ type: '', message: '' });
@@ -90,8 +93,7 @@ export default function UsersDirectory() {
     if (roleFilter === 'admin' && u.systemRole !== 'Admin') return false;
     if (roleFilter === 'user' && u.systemRole !== 'User') return false;
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      return u.fullName.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
+      return matchesSearch(u.fullName, searchQuery) || matchesSearch(u.email, searchQuery);
     }
     return true;
   });

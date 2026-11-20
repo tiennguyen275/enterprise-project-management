@@ -4,6 +4,7 @@ using EnterpriseProjectManagement.Application.Features.MeetingNotes.Services;
 using EnterpriseProjectManagement.Application.Features.ProjectChat.Services;
 using EnterpriseProjectManagement.Application.Features.Projects.Services;
 using EnterpriseProjectManagement.Application.Features.Schedule.Services;
+using EnterpriseProjectManagement.Application.Features.Search.Services;
 using EnterpriseProjectManagement.Application.Features.StatusReports.Services;
 using EnterpriseProjectManagement.Application.Features.Tasks.Services;
 using EnterpriseProjectManagement.Application.Features.Users.Services;
@@ -24,6 +25,7 @@ public static class DependencyInjection
         services.AddScoped<IProjectChatService, ProjectChatService>();
         services.AddScoped<IScheduleService, ScheduleService>();
         services.AddScoped<IUserService, UserService>();
+        services.AddScoped<IGlobalSearchService, GlobalSearchService>();
         return services;
     }
 }

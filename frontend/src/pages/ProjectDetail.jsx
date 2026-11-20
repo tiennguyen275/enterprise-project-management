@@ -5,12 +5,13 @@ import ForumOutlinedIcon from '@mui/icons-material/ForumOutlined';
 import AutoAwesomeOutlinedIcon from '@mui/icons-material/AutoAwesomeOutlined';
 import SendOutlinedIcon from '@mui/icons-material/SendOutlined';
 import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import Navbar from '../components/Navbar';
 import FormattedAiText from '../components/FormattedAiText';
 import UserAvatar from '../components/UserAvatar';
 import AssigneeSelect from '../components/AssigneeSelect';
+import { matchesSearch } from '../utils/textSearch';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import AddIcon from '@mui/icons-material/Add';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
@@ -44,6 +45,8 @@ const HEALTH_LABELS = {
 
 export default function ProjectDetail() {
   const { id } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTaskId = searchParams.get('taskId');
 
   const [activeTab, setActiveTab] = useState('kanban');
   const [project, setProject] = useState(null);
@@ -366,6 +369,23 @@ export default function ProjectDetail() {
           if (scheduleRes) {
             setScheduleData(scheduleRes.data);
           }
+          if (requestedTaskId) {
+            const matched = tasksRes.data.find((t) => t.id === requestedTaskId);
+            if (matched) {
+              setSelectedTask(matched);
+              setTaskEditForm({
+                title: matched.title || '',
+                description: matched.description || '',
+                status: matched.status || 1,
+                priority: matched.priority || 2,
+                dueDate: matched.dueDate ? matched.dueDate.substring(0, 10) : '',
+                estimatedHours: matched.estimatedHours != null ? matched.estimatedHours : '',
+                actualHours: matched.actualHours != null ? matched.actualHours : '',
+                assigneeId: matched.assigneeId || '',
+              });
+              setSearchParams({}, { replace: true });
+            }
+          }
         }
       })
       .catch((err) => {
@@ -377,7 +397,7 @@ export default function ProjectDetail() {
     return () => {
       isMounted = false;
     };
-  }, [id]);
+  }, [id, requestedTaskId, setSearchParams]);
 
   const handleCreateTask = async (e) => {
     e.preventDefault();
@@ -928,10 +948,10 @@ export default function ProjectDetail() {
                 const colTasks = tasks.filter(t => {
                   if (t.status !== col.id) return false;
                   if (kanbanSearch.trim()) {
-                    const q = kanbanSearch.toLowerCase();
-                    const matchTitle = t.title?.toLowerCase().includes(q);
-                    const matchCode = t.taskCode?.toLowerCase().includes(q);
-                    if (!matchTitle && !matchCode) return false;
+                    const matchTitle = matchesSearch(t.title, kanbanSearch);
+                    const matchCode = matchesSearch(t.taskCode, kanbanSearch);
+                    const matchAssignee = matchesSearch(t.assigneeName, kanbanSearch);
+                    if (!matchTitle && !matchCode && !matchAssignee) return false;
                   }
                   if (kanbanAssignee === 'UNASSIGNED' && t.assigneeId) return false;
                   if (kanbanAssignee !== 'ALL' && kanbanAssignee !== 'UNASSIGNED' && t.assigneeId !== kanbanAssignee) return false;
