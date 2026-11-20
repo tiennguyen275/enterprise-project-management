@@ -4,7 +4,7 @@ public record RegisterRequestDto(string Email, string Password, string FullName)
 
 public record LoginRequestDto(string Email, string Password);
 
-public record AuthResponseDto(Guid UserId, string Email, string FullName, string Token, DateTime ExpiresAt);
+public record AuthResponseDto(Guid UserId, string Email, string FullName, string Token, DateTime ExpiresAt, string SystemRole = "User");
 
 public record ForgotPasswordRequestDto(string Email);
 

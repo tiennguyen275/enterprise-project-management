@@ -158,6 +158,11 @@ using (var scope = app.Services.CreateScope())
             CREATE UNIQUE INDEX [IX_TaskDependencies_Predecessor_Successor] ON [dbo].[TaskDependencies] ([PredecessorTaskId], [SuccessorTaskId]) WHERE [IsDeleted] = 0;
             CREATE INDEX [IX_TaskDependencies_ProjectId] ON [dbo].[TaskDependencies] ([ProjectId]);
         END
+
+        IF COL_LENGTH(N'dbo.Users', N'SystemRole') IS NULL
+        BEGIN
+            ALTER TABLE [dbo].[Users] ADD [SystemRole] int NOT NULL CONSTRAINT [DF_Users_SystemRole] DEFAULT(0);
+        END
     ");
 }
 

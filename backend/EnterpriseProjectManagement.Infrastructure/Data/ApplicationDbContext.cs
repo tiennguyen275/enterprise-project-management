@@ -1,5 +1,6 @@
 using EnterpriseProjectManagement.Domain.Common;
 using EnterpriseProjectManagement.Domain.Entities;
+using EnterpriseProjectManagement.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace EnterpriseProjectManagement.Infrastructure.Data;
@@ -40,6 +41,7 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(e => e.Email).IsUnique();
             entity.Property(e => e.Email).IsRequired().HasMaxLength(150);
             entity.Property(e => e.FullName).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.SystemRole).HasDefaultValue(SystemRole.User);
         });
 
         modelBuilder.Entity<Project>(entity =>

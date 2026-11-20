@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
 import FolderSpecialOutlinedIcon from '@mui/icons-material/FolderSpecialOutlined';
 import CheckCircleOutlineOutlinedIcon from '@mui/icons-material/CheckCircleOutlineOutlined';
@@ -12,6 +13,8 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isAdmin = user?.systemRole === 'Admin';
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -61,7 +64,11 @@ export default function Dashboard() {
         <div className="content-header">
           <div>
             <h1>Không Gian Làm Việc</h1>
-            <p>Theo dõi tiến độ và các dự án doanh nghiệp của bạn</p>
+            <p>
+              {isAdmin
+                ? 'Chế độ Quản trị Hệ thống — Theo dõi toàn bộ dự án của doanh nghiệp'
+                : 'Theo dõi tiến độ và các dự án doanh nghiệp của bạn'}
+            </p>
           </div>
           <button onClick={() => setShowCreateModal(true)} className="btn-primary">
             <AddIcon fontSize="small" />

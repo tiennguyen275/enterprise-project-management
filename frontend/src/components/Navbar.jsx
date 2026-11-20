@@ -48,7 +48,12 @@ export default function Navbar() {
             {userInitial}
           </div>
           <div className="user-meta">
-            <span className="user-name">{user?.fullName || 'Thành viên'}</span>
+            <div className="user-name-row">
+              <span className="user-name">{user?.fullName || 'Thành viên'}</span>
+              {user?.systemRole === 'Admin' && (
+                <span className="user-role-badge">Admin</span>
+              )}
+            </div>
             <span className="user-email">{user?.email || 'Thành viên tổ chức'}</span>
           </div>
         </div>

@@ -1,5 +1,11 @@
 namespace EnterpriseProjectManagement.Domain.Enums;
 
+public enum SystemRole
+{
+    User = 0,
+    Admin = 1
+}
+
 public enum ProjectStatus
 {
     Planning = 1,

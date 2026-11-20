@@ -40,11 +40,29 @@ public class ProjectService : IProjectService
 
     public async Task<IReadOnlyList<ProjectResponseDto>> GetUserProjectsAsync(Guid userId, CancellationToken cancellationToken = default)
     {
-        var memberships = await _memberRepository.FindAsync(m => m.UserId == userId, cancellationToken);
-        var projectIds = memberships.Select(m => m.ProjectId).ToHashSet();
+        var currentUser = await _userRepository.GetByIdAsync(userId, cancellationToken);
+        IReadOnlyList<Project> projects;
+        HashSet<Guid> projectIds;
 
-        var projects = await _projectRepository.FindAsync(p => projectIds.Contains(p.Id), cancellationToken);
-        var tasks = await _taskRepository.FindAsync(t => projectIds.Contains(t.ProjectId) && t.ParentTaskId == null, cancellationToken);
+        if (currentUser?.SystemRole == SystemRole.Admin)
+        {
+            projects = (await _projectRepository.GetAllAsync(cancellationToken))
+                .OrderByDescending(p => p.CreatedAt)
+                .ToList();
+            projectIds = projects.Select(p => p.Id).ToHashSet();
+        }
+        else
+        {
+            var memberships = await _memberRepository.FindAsync(m => m.UserId == userId, cancellationToken);
+            projectIds = memberships.Select(m => m.ProjectId).ToHashSet();
+            projects = (await _projectRepository.FindAsync(p => projectIds.Contains(p.Id), cancellationToken))
+                .OrderByDescending(p => p.CreatedAt)
+                .ToList();
+        }
+
+        var tasks = projectIds.Count > 0
+            ? await _taskRepository.FindAsync(t => projectIds.Contains(t.ProjectId) && t.ParentTaskId == null, cancellationToken)
+            : Array.Empty<ProjectTask>();
 
         var result = new List<ProjectResponseDto>();
         foreach (var project in projects)
