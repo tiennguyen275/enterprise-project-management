@@ -5,12 +5,13 @@ import ForumOutlinedIcon from '@mui/icons-material/ForumOutlined';
 import AutoAwesomeOutlinedIcon from '@mui/icons-material/AutoAwesomeOutlined';
 import SendOutlinedIcon from '@mui/icons-material/SendOutlined';
 import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import Navbar from '../components/Navbar';
 import FormattedAiText from '../components/FormattedAiText';
 import UserAvatar from '../components/UserAvatar';
 import AssigneeSelect from '../components/AssigneeSelect';
+import { matchesSearch } from '../utils/textSearch';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import AddIcon from '@mui/icons-material/Add';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
@@ -44,6 +45,8 @@ const HEALTH_LABELS = {
 
 export default function ProjectDetail() {
   const { id } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTaskId = searchParams.get('taskId');
 
   const [activeTab, setActiveTab] = useState('kanban');
   const [project, setProject] = useState(null);
@@ -583,6 +586,29 @@ export default function ProjectDetail() {
     });
   };
 
+  useEffect(() => {
+    if (!requestedTaskId) return undefined;
+    let isMounted = true;
+    api.get(`/tasks/${requestedTaskId}`)
+      .then((res) => {
+        if (!isMounted || !res.data) return;
+        setTaskSaveMsg('');
+        setNewSubtaskTitle('');
+        setSubtaskSuggestions([]);
+        setSuggestionError('');
+        setAssigneeSuggestions([]);
+        setSelectedTask(res.data);
+        syncTaskEditForm(res.data);
+        setSearchParams({}, { replace: true });
+      })
+      .catch((err) => {
+        console.error('Lỗi tải chi tiết công việc từ tìm kiếm:', err);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [requestedTaskId, setSearchParams]);
+
   const handleOpenTaskDetail = async (taskId) => {
     try {
       setTaskSaveMsg('');
@@ -928,10 +954,10 @@ export default function ProjectDetail() {
                 const colTasks = tasks.filter(t => {
                   if (t.status !== col.id) return false;
                   if (kanbanSearch.trim()) {
-                    const q = kanbanSearch.toLowerCase();
-                    const matchTitle = t.title?.toLowerCase().includes(q);
-                    const matchCode = t.taskCode?.toLowerCase().includes(q);
-                    if (!matchTitle && !matchCode) return false;
+                    const matchTitle = matchesSearch(t.title, kanbanSearch);
+                    const matchCode = matchesSearch(t.taskCode, kanbanSearch);
+                    const matchAssignee = matchesSearch(t.assigneeName, kanbanSearch);
+                    if (!matchTitle && !matchCode && !matchAssignee) return false;
                   }
                   if (kanbanAssignee === 'UNASSIGNED' && t.assigneeId) return false;
                   if (kanbanAssignee !== 'ALL' && kanbanAssignee !== 'UNASSIGNED' && t.assigneeId !== kanbanAssignee) return false;

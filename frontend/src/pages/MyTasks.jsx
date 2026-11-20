@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
+import { matchesSearch } from '../utils/textSearch';
 import Navbar from '../components/Navbar';
 import AssignmentOutlinedIcon from '@mui/icons-material/AssignmentOutlined';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
@@ -120,10 +121,9 @@ export default function MyTasks() {
     }
 
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const matchTitle = task.title.toLowerCase().includes(q);
-      const matchCode = task.taskCode.toLowerCase().includes(q);
-      const matchProject = task.projectName.toLowerCase().includes(q);
+      const matchTitle = matchesSearch(task.title, searchQuery);
+      const matchCode = matchesSearch(task.taskCode, searchQuery);
+      const matchProject = matchesSearch(task.projectName, searchQuery);
       if (!matchTitle && !matchCode && !matchProject) return false;
     }
 
