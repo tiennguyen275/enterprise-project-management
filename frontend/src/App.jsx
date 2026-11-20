@@ -1,13 +1,13 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import Dashboard from './pages/Dashboard';
-import ProjectDetail from './pages/ProjectDetail';
-import MyTasks from './pages/MyTasks';
-import UsersDirectory from './pages/UsersDirectory';
-import ProfileSettings from './pages/ProfileSettings';
+import Login from './pages/auth/Login';
+import Register from './pages/auth/Register';
+import Dashboard from './pages/projects/Dashboard';
+import ProjectDetail from './pages/projects/ProjectDetail';
+import MyTasks from './pages/tasks/MyTasks';
+import UsersDirectory from './pages/users/UsersDirectory';
+import ProfileSettings from './pages/users/ProfileSettings';
 
 const ProtectedRoute = ({ children }) => {
   const { user } = useAuth();
