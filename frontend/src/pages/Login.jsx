@@ -19,11 +19,7 @@ export default function Login() {
       ? (localStorage.getItem('epms_saved_email') || '')
       : '';
   });
-  const [password, setPassword] = useState(() => {
-    return localStorage.getItem('epms_remember_me') === 'true'
-      ? (localStorage.getItem('epms_saved_password') || '')
-      : '';
-  });
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(() => {
     return localStorage.getItem('epms_remember_me') === 'true';
@@ -40,14 +36,13 @@ export default function Login() {
     setLoading(true);
     try {
       await login(email, password);
+      localStorage.removeItem('epms_saved_password');
       if (rememberMe) {
         localStorage.setItem('epms_remember_me', 'true');
         localStorage.setItem('epms_saved_email', email);
-        localStorage.setItem('epms_saved_password', password);
       } else {
         localStorage.removeItem('epms_remember_me');
         localStorage.removeItem('epms_saved_email');
-        localStorage.removeItem('epms_saved_password');
       }
       navigate('/');
     } catch (err) {
