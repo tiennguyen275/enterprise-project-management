@@ -1,0 +1,2505 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { useAuth } from '../../context/AuthContext';
+import { createProjectHubConnection } from '../../services/signalr';
+import ForumOutlinedIcon from '@mui/icons-material/ForumOutlined';
+import AutoAwesomeOutlinedIcon from '@mui/icons-material/AutoAwesomeOutlined';
+import SendOutlinedIcon from '@mui/icons-material/SendOutlined';
+import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
+import api from '../../services/api';
+import Navbar from '../../components/layout/Navbar';
+import FormattedAiText from '../../components/common/FormattedAiText';
+import UserAvatar from '../../components/common/UserAvatar';
+import AssigneeSelect from '../../components/common/AssigneeSelect';
+import { matchesSearch } from '../../utils/textSearch';
+import { exportTasksToExcelCsv, exportScheduleToExcelCsv, printExecutiveReport } from '../../utils/exportReport';
+import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined';
+import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
+import HistoryIcon from '@mui/icons-material/History';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import AddIcon from '@mui/icons-material/Add';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import ErrorOutlineOutlinedIcon from '@mui/icons-material/ErrorOutlineOutlined';
+import ChatBubbleOutlineOutlinedIcon from '@mui/icons-material/ChatBubbleOutlineOutlined';
+import PersonAddAlt1OutlinedIcon from '@mui/icons-material/PersonAddAlt1Outlined';
+import PeopleAltOutlinedIcon from '@mui/icons-material/PeopleAltOutlined';
+import BarChartOutlinedIcon from '@mui/icons-material/BarChartOutlined';
+import ViewKanbanOutlinedIcon from '@mui/icons-material/ViewKanbanOutlined';
+import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
+import CalendarTodayOutlinedIcon from '@mui/icons-material/CalendarTodayOutlined';
+import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined';
+import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlineOutlined';
+import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined';
+import CloseIcon from '@mui/icons-material/Close';
+import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
+
+const COLUMNS = [
+  { id: 1, title: 'Cần làm (Todo)', color: '#64748b' },
+  { id: 2, title: 'Đang làm (In Progress)', color: '#2563eb' },
+  { id: 3, title: 'Chờ duyệt (In Review)', color: '#eab308' },
+  { id: 4, title: 'Hoàn thành (Done)', color: '#10b981' },
+];
+
+const HEALTH_LABELS = {
+  1: 'Đúng tiến độ (On Track)',
+  2: 'Có rủi ro (At Risk)',
+  3: 'Chậm tiến độ (Delayed)',
+};
+
+export default function ProjectDetail() {
+  const { id } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTaskId = searchParams.get('taskId');
+
+  const [activeTab, setActiveTab] = useState('kanban');
+  const [project, setProject] = useState(null);
+  const [tasks, setTasks] = useState([]);
+  const [analytics, setAnalytics] = useState(null);
+  const [notes, setNotes] = useState([]);
+  const [healthOverview, setHealthOverview] = useState(null);
+  const [activities, setActivities] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const [draggedTaskId, setDraggedTaskId] = useState(null);
+  const [dragOverColId, setDragOverColId] = useState(null);
+
+  const [showTaskModal, setShowTaskModal] = useState(false);
+  const [newTask, setNewTask] = useState({
+    title: '',
+    description: '',
+    priority: 2,
+    dueDate: '',
+    estimatedHours: '',
+    assigneeId: ''
+  });
+
+  const [showMemberModal, setShowMemberModal] = useState(false);
+  const [memberEmail, setMemberEmail] = useState('');
+  const [memberRole, setMemberRole] = useState(3);
+  const [memberError, setMemberError] = useState('');
+
+  const [showNoteModal, setShowNoteModal] = useState(false);
+  const [newNote, setNewNote] = useState(() => ({
+    title: '',
+    meetingDate: new Date().toISOString().substring(0, 10),
+    attendees: '',
+    content: '',
+    actionItems: ''
+  }));
+
+  const [timeframeFilter, setTimeframeFilter] = useState({ startDate: '', endDate: '' });
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportError, setReportError] = useState('');
+  const [needsOutOfRangeConfirm, setNeedsOutOfRangeConfirm] = useState(false);
+  const [newReport, setNewReport] = useState(() => {
+    const today = new Date();
+    const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+    return {
+      title: '',
+      reportStartDate: weekAgo.toISOString().substring(0, 10),
+      reportEndDate: today.toISOString().substring(0, 10),
+      healthRating: 1,
+      keyAccomplishments: '',
+      upcomingPlan: '',
+      risksAndBlockers: ''
+    };
+  });
+
+  const [kanbanSearch, setKanbanSearch] = useState('');
+  const [kanbanAssignee, setKanbanAssignee] = useState('ALL');
+  const [kanbanPriority, setKanbanPriority] = useState('ALL');
+
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [taskEditForm, setTaskEditForm] = useState({
+    title: '',
+    description: '',
+    status: 1,
+    priority: 2,
+    dueDate: '',
+    estimatedHours: '',
+    actualHours: '',
+    assigneeId: ''
+  });
+  const [taskSaveMsg, setTaskSaveMsg] = useState('');
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+  const [commentText, setCommentText] = useState('');
+  const [aiInsight, setAiInsight] = useState(null);
+  const [aiInsightLoading, setAiInsightLoading] = useState(false);
+  const [aiInsightError, setAiInsightError] = useState('');
+  const [subtaskSuggestions, setSubtaskSuggestions] = useState([]);
+  const [suggestionLoading, setSuggestionLoading] = useState(false);
+  const [suggestionError, setSuggestionError] = useState('');
+  const [assigneeSuggestions, setAssigneeSuggestions] = useState([]);
+  const { user: currentUser } = useAuth();
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatLoading, setChatLoading] = useState(true);
+  const [chatInput, setChatInput] = useState('');
+  const [chatSending, setChatSending] = useState(false);
+  const [aiThinking, setAiThinking] = useState(false);
+  const [signalRConnected, setSignalRConnected] = useState(false);
+  const chatBottomRef = useRef(null);
+  const aiThinkingTimerRef = useRef(null);
+  const [scheduleData, setScheduleData] = useState(null);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [showDependencyModal, setShowDependencyModal] = useState(false);
+  const [newDep, setNewDep] = useState({ predecessorTaskId: '', successorTaskId: '', lagDays: 0 });
+  const [depError, setDepError] = useState('');
+
+  const fetchProjectData = async () => {
+    try {
+      setLoading(true);
+      const params = new URLSearchParams();
+      if (timeframeFilter.startDate) params.append('startDate', timeframeFilter.startDate);
+      if (timeframeFilter.endDate) params.append('endDate', timeframeFilter.endDate);
+      const healthQuery = params.toString() ? `?${params.toString()}` : '';
+
+      const [projRes, tasksRes, analyticsRes, notesRes, healthRes, scheduleRes, activitiesRes] = await Promise.all([
+        api.get(`/projects/${id}`),
+        api.get(`/tasks/project/${id}`),
+        api.get(`/projects/${id}/analytics`),
+        api.get(`/meetingnotes/project/${id}`),
+        api.get(`/status-reports/project/${id}${healthQuery}`),
+        api.get(`/projects/${id}/schedule`),
+        api.get(`/projects/${id}/activities`)
+      ]);
+      setProject(projRes.data);
+      setTasks(tasksRes.data);
+      setAnalytics(analyticsRes.data);
+      setNotes(notesRes.data);
+      setHealthOverview(healthRes.data);
+      if (scheduleRes) setScheduleData(scheduleRes.data);
+      if (activitiesRes) setActivities(activitiesRes.data || []);
+    } catch (err) {
+      console.error('Lỗi tải dữ liệu dự án:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSendMessage = async (e, forceAskAi = false, directText = null) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const textToSend = directText || chatInput;
+    if (!textToSend || !textToSend.trim() || chatSending) return;
+
+    const lower = textToSend.toLowerCase();
+    const isAskingAi = forceAskAi || lower.includes('@ai') || lower.startsWith('/ai');
+
+    if (!directText) {
+      setChatInput('');
+    }
+    setChatSending(true);
+    if (isAskingAi) {
+      setAiThinking(true);
+      if (aiThinkingTimerRef.current) clearTimeout(aiThinkingTimerRef.current);
+      aiThinkingTimerRef.current = setTimeout(() => {
+        setAiThinking(false);
+      }, 25000);
+    }
+    try {
+      const res = await api.post(`/projects/${id}/messages`, {
+        content: textToSend.trim(),
+        askAi: isAskingAi,
+      });
+      if (res.data) {
+        setChatMessages((prev) => {
+          if (prev.some((m) => m.id === res.data.id)) return prev;
+          return [...prev, res.data];
+        });
+      }
+    } catch (err) {
+      console.error('Loi gui tin nhan:', err);
+      setAiThinking(false);
+    } finally {
+      setChatSending(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!id) return;
+
+    api.get(`/projects/${id}/messages`)
+      .then((res) => {
+        setChatMessages(res.data || []);
+      })
+      .catch((err) => {
+        console.error('Loi tai tin nhan du an:', err);
+      })
+      .finally(() => {
+        setChatLoading(false);
+      });
+
+    const hub = createProjectHubConnection(id, {
+      onProjectMessage: (message) => {
+        setChatMessages((prev) => {
+          if (prev.some((m) => m.id === message.id)) return prev;
+          return [...prev, message];
+        });
+        if (message.isAiGenerated) {
+          setAiThinking(false);
+          if (aiThinkingTimerRef.current) clearTimeout(aiThinkingTimerRef.current);
+        } else if (
+          message.content &&
+          (message.content.toLowerCase().includes('@ai') || message.content.toLowerCase().startsWith('/ai'))
+        ) {
+          setAiThinking(true);
+          if (aiThinkingTimerRef.current) clearTimeout(aiThinkingTimerRef.current);
+          aiThinkingTimerRef.current = setTimeout(() => {
+            setAiThinking(false);
+          }, 25000);
+        }
+      },
+      onTaskUpdate: ({ task, action }) => {
+        if (!task || task.parentTaskId) return;
+        if (action === 'deleted') {
+          setTasks((prev) => prev.filter((t) => t.id !== task.id));
+          setSelectedTask((prev) => (prev && prev.id === task.id ? null : prev));
+          return;
+        }
+        if (action === 'created') {
+          setTasks((prev) => {
+            if (prev.some((t) => t.id === task.id)) return prev;
+            return [task, ...prev];
+          });
+        } else {
+          setTasks((prev) => {
+            const exists = prev.some((t) => t.id === task.id);
+            if (!exists) return [task, ...prev];
+            return prev.map((t) => (t.id === task.id ? { ...t, ...task } : t));
+          });
+        }
+        setSelectedTask((prev) => (prev && prev.id === task.id ? { ...prev, ...task } : prev));
+      },
+      onProjectDataChanged: () => {
+        api.get(`/tasks/project/${id}`)
+          .then((res) => setTasks(res.data))
+          .catch(() => {});
+      },
+      onConnectionChange: (connected) => {
+        setSignalRConnected(connected);
+      },
+    });
+
+    return () => {
+      hub.stop();
+    };
+  }, [id]);
+
+  useEffect(() => {
+    if (activeTab === 'chat') {
+      chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [chatMessages, aiThinking, activeTab]);
+
+  useEffect(() => {
+    return () => {
+      if (aiThinkingTimerRef.current) clearTimeout(aiThinkingTimerRef.current);
+    };
+  }, []);
+
+  const fetchScheduleData = async () => {
+    try {
+      setScheduleLoading(true);
+      const res = await api.get(`/projects/${id}/schedule`);
+      setScheduleData(res.data);
+    } catch (err) {
+      console.error('Loi tai du lieu duong gang CPM:', err);
+    } finally {
+      setScheduleLoading(false);
+    }
+  };
+
+  const handleAddDependency = async (e) => {
+    e.preventDefault();
+    setDepError('');
+    if (!newDep.predecessorTaskId || !newDep.successorTaskId) {
+      setDepError('Vui lòng chọn cả công việc trước và công việc sau.');
+      return;
+    }
+    if (newDep.predecessorTaskId === newDep.successorTaskId) {
+      setDepError('Công việc không thể phụ thuộc vào chính nó.');
+      return;
+    }
+    try {
+      await api.post(`/projects/${id}/dependencies`, {
+        predecessorTaskId: newDep.predecessorTaskId,
+        successorTaskId: newDep.successorTaskId,
+        lagDays: parseInt(newDep.lagDays || 0, 10),
+      });
+      setShowDependencyModal(false);
+      setNewDep({ predecessorTaskId: '', successorTaskId: '', lagDays: 0 });
+      fetchScheduleData();
+    } catch (err) {
+      setDepError(err.response?.data?.message || 'Lỗi thêm ràng buộc công việc.');
+    }
+  };
+
+  const handleDeleteDependency = async (depId) => {
+    try {
+      await api.delete(`/projects/${id}/dependencies/${depId}`);
+      fetchScheduleData();
+    } catch (err) {
+      console.error('Loi xoa rang buoc:', err);
+    }
+  };
+
+  const fetchHealthOverview = async (start, end) => {
+    try {
+      const params = new URLSearchParams();
+      if (start) params.append('startDate', start);
+      if (end) params.append('endDate', end);
+      const query = params.toString() ? `?${params.toString()}` : '';
+      const res = await api.get(`/status-reports/project/${id}${query}`);
+      setHealthOverview(res.data);
+    } catch (err) {
+      console.error('Lỗi tải báo cáo sức khỏe dự án:', err);
+    }
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+    Promise.all([
+      api.get(`/projects/${id}`),
+      api.get(`/tasks/project/${id}`),
+      api.get(`/projects/${id}/analytics`),
+      api.get(`/meetingnotes/project/${id}`),
+      api.get(`/status-reports/project/${id}`),
+      api.get(`/projects/${id}/schedule`),
+      api.get(`/projects/${id}/activities`)
+    ])
+      .then(([projRes, tasksRes, analyticsRes, notesRes, healthRes, scheduleRes, activitiesRes]) => {
+        if (isMounted) {
+          setProject(projRes.data);
+          setTasks(tasksRes.data);
+          setAnalytics(analyticsRes.data);
+          setNotes(notesRes.data);
+          setHealthOverview(healthRes.data);
+          if (scheduleRes) {
+            setScheduleData(scheduleRes.data);
+          }
+          if (activitiesRes) {
+            setActivities(activitiesRes.data || []);
+          }
+        }
+      })
+      .catch((err) => {
+        console.error('Lỗi tải dữ liệu dự án:', err);
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [id]);
+
+  const handleCreateTask = async (e) => {
+    e.preventDefault();
+    try {
+      await api.post('/tasks', {
+        projectId: id,
+        title: newTask.title,
+        description: newTask.description,
+        priority: parseInt(newTask.priority),
+        dueDate: newTask.dueDate ? new Date(newTask.dueDate).toISOString() : null,
+        estimatedHours: newTask.estimatedHours ? parseFloat(newTask.estimatedHours) : null,
+        assigneeId: newTask.assigneeId || null
+      });
+      setShowTaskModal(false);
+      setNewTask({ title: '', description: '', priority: 2, dueDate: '', estimatedHours: '', assigneeId: '' });
+      fetchProjectData();
+    } catch (err) {
+      alert('Không thể tạo công việc: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleUpdateStatus = async (taskId, newStatus) => {
+    try {
+      const task = tasks.find(t => t.id === taskId);
+      if (!task || task.status === newStatus) return;
+
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
+
+      await api.put(`/tasks/${taskId}`, {
+        title: task.title,
+        description: task.description,
+        status: newStatus,
+        priority: task.priority,
+        dueDate: task.dueDate,
+        estimatedHours: task.estimatedHours,
+        actualHours: task.actualHours,
+        assigneeId: task.assigneeId
+      });
+      fetchHealthOverview(timeframeFilter.startDate, timeframeFilter.endDate);
+    } catch (err) {
+      alert('Không thể cập nhật trạng thái: ' + (err.response?.data?.message || err.message));
+      fetchProjectData();
+    }
+  };
+
+  const handleDragStart = (e, taskId) => {
+    setDraggedTaskId(taskId);
+    e.dataTransfer.setData('text/plain', taskId);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e, colId) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverColId !== colId) {
+      setDragOverColId(colId);
+    }
+  };
+
+  const handleDragLeave = (e, colId) => {
+    if (dragOverColId === colId) {
+      setDragOverColId(null);
+    }
+  };
+
+  const handleDrop = async (e, colId) => {
+    e.preventDefault();
+    setDragOverColId(null);
+    const taskId = e.dataTransfer.getData('text/plain') || draggedTaskId;
+    if (taskId) {
+      handleUpdateStatus(taskId, colId);
+    }
+    setDraggedTaskId(null);
+  };
+
+  const handleInviteMember = async (e) => {
+    e.preventDefault();
+    setMemberError('');
+    try {
+      await api.post(`/projects/${id}/members?email=${encodeURIComponent(memberEmail)}&role=${memberRole}`);
+      setShowMemberModal(false);
+      setMemberEmail('');
+      fetchProjectData();
+    } catch (err) {
+      setMemberError(err.response?.data?.message || 'Không thể thêm thành viên.');
+    }
+  };
+
+  const handleCreateNote = async (e) => {
+    e.preventDefault();
+    try {
+      await api.post('/meetingnotes', {
+        projectId: id,
+        title: newNote.title,
+        meetingDate: new Date(newNote.meetingDate).toISOString(),
+        attendees: newNote.attendees,
+        content: newNote.content,
+        actionItems: newNote.actionItems
+      });
+      setShowNoteModal(false);
+      setNewNote({
+        title: '',
+        meetingDate: new Date().toISOString().substring(0, 10),
+        attendees: '',
+        content: '',
+        actionItems: ''
+      });
+      const notesRes = await api.get(`/meetingnotes/project/${id}`);
+      setNotes(notesRes.data);
+    } catch (err) {
+      alert('Không thể lưu biên bản: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleDeleteNote = async (noteId) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa biên bản cuộc họp này?')) return;
+    try {
+      await api.delete(`/meetingnotes/${noteId}`);
+      setNotes(prev => prev.filter(n => n.id !== noteId));
+    } catch (err) {
+      console.error('Lỗi xóa biên bản:', err);
+      alert('Không thể xóa biên bản.');
+    }
+  };
+
+  const handleTimeframeChange = (field, value) => {
+    const updated = { ...timeframeFilter, [field]: value };
+    setTimeframeFilter(updated);
+    fetchHealthOverview(updated.startDate, updated.endDate);
+  };
+
+  const handleOpenReportModal = () => {
+    setReportError('');
+    setNeedsOutOfRangeConfirm(false);
+    setNewReport(prev => ({
+      ...prev,
+      healthRating: healthOverview?.suggestedRating || 1
+    }));
+    setShowReportModal(true);
+  };
+
+  const submitStatusReport = async (skipWarning) => {
+    setReportError('');
+    try {
+      await api.post('/status-reports', {
+        projectId: id,
+        title: newReport.title,
+        reportStartDate: new Date(newReport.reportStartDate).toISOString(),
+        reportEndDate: new Date(newReport.reportEndDate).toISOString(),
+        healthRating: parseInt(newReport.healthRating),
+        keyAccomplishments: newReport.keyAccomplishments,
+        upcomingPlan: newReport.upcomingPlan,
+        risksAndBlockers: newReport.risksAndBlockers,
+        skipOutOfRangeWarning: skipWarning
+      });
+      setShowReportModal(false);
+      setNeedsOutOfRangeConfirm(false);
+      setNewReport(prev => ({
+        ...prev,
+        title: '',
+        keyAccomplishments: '',
+        upcomingPlan: '',
+        risksAndBlockers: ''
+      }));
+      fetchHealthOverview(timeframeFilter.startDate, timeframeFilter.endDate);
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Không thể lưu báo cáo trạng thái.';
+      if (msg.includes('HAVE_TASK_OUT_OF_RANGE')) {
+        setNeedsOutOfRangeConfirm(true);
+        setReportError('Phát hiện có công việc được tạo ngoài khoảng thời gian kỳ báo cáo đã chọn. Bạn có muốn tiếp tục lưu báo cáo không?');
+      } else {
+        setReportError(msg);
+      }
+    }
+  };
+
+  const handleCreateReport = (e) => {
+    e.preventDefault();
+    submitStatusReport(needsOutOfRangeConfirm);
+  };
+
+  const handleDeleteReport = async (reportId) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa báo cáo trạng thái này?')) return;
+    try {
+      await api.delete(`/status-reports/${reportId}`);
+      fetchHealthOverview(timeframeFilter.startDate, timeframeFilter.endDate);
+    } catch (err) {
+      console.error('Lỗi xóa báo cáo:', err);
+      alert('Không thể xóa báo cáo trạng thái.');
+    }
+  };
+
+  const syncTaskEditForm = (taskData) => {
+    setTaskEditForm({
+      title: taskData.title || '',
+      description: taskData.description || '',
+      status: taskData.status || 1,
+      priority: taskData.priority || 2,
+      dueDate: taskData.dueDate ? taskData.dueDate.substring(0, 10) : '',
+      estimatedHours: taskData.estimatedHours ?? '',
+      actualHours: taskData.actualHours ?? '',
+      assigneeId: taskData.assigneeId || ''
+    });
+  };
+
+  useEffect(() => {
+    if (!requestedTaskId) return undefined;
+    let isMounted = true;
+    api.get(`/tasks/${requestedTaskId}`)
+      .then((res) => {
+        if (!isMounted || !res.data) return;
+        setTaskSaveMsg('');
+        setNewSubtaskTitle('');
+        setSubtaskSuggestions([]);
+        setSuggestionError('');
+        setAssigneeSuggestions([]);
+        setSelectedTask(res.data);
+        syncTaskEditForm(res.data);
+        setSearchParams({}, { replace: true });
+      })
+      .catch((err) => {
+        console.error('Lỗi tải chi tiết công việc từ tìm kiếm:', err);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [requestedTaskId, setSearchParams]);
+
+  const handleOpenTaskDetail = async (taskId) => {
+    try {
+      setTaskSaveMsg('');
+      setNewSubtaskTitle('');
+      setSubtaskSuggestions([]);
+      setSuggestionError('');
+      setAssigneeSuggestions([]);
+      const res = await api.get(`/tasks/${taskId}`);
+      setSelectedTask(res.data);
+      syncTaskEditForm(res.data);
+    } catch (err) {
+      console.error('Lỗi tải chi tiết task:', err);
+    }
+  };
+
+  const handleSaveTaskDetail = async (e) => {
+    e.preventDefault();
+    if (!selectedTask) return;
+    try {
+      setTaskSaveMsg('');
+      const res = await api.put(`/tasks/${selectedTask.id}`, {
+        title: taskEditForm.title,
+        description: taskEditForm.description,
+        status: parseInt(taskEditForm.status),
+        priority: parseInt(taskEditForm.priority),
+        dueDate: taskEditForm.dueDate ? new Date(taskEditForm.dueDate).toISOString() : null,
+        estimatedHours: taskEditForm.estimatedHours !== '' ? parseFloat(taskEditForm.estimatedHours) : null,
+        actualHours: taskEditForm.actualHours !== '' ? parseFloat(taskEditForm.actualHours) : null,
+        assigneeId: taskEditForm.assigneeId || null
+      });
+      setSelectedTask(res.data);
+      syncTaskEditForm(res.data);
+      setTaskSaveMsg('Đã lưu cập nhật!');
+      fetchProjectData();
+    } catch (err) {
+      alert('Không thể cập nhật công việc: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleDeleteTask = async () => {
+    if (!selectedTask) return;
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa công việc "${selectedTask.taskCode}: ${selectedTask.title}"?`)) return;
+    try {
+      await api.delete(`/tasks/${selectedTask.id}`);
+      setSelectedTask(null);
+      fetchProjectData();
+    } catch (err) {
+      alert('Không thể xóa công việc: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const createSubtask = async (title) => {
+    await api.post('/tasks', {
+      projectId: id,
+      title,
+      description: null,
+      priority: 2,
+      dueDate: null,
+      estimatedHours: null,
+      assigneeId: selectedTask.assigneeId || null,
+      parentTaskId: selectedTask.id
+    });
+    const refreshed = await api.get(`/tasks/${selectedTask.id}`);
+    setSelectedTask(refreshed.data);
+    setTasks(prev => prev.map(t => t.id === selectedTask.id ? refreshed.data : t));
+  };
+
+  const handleAddSubtask = async (e) => {
+    e.preventDefault();
+    if (!newSubtaskTitle.trim() || !selectedTask) return;
+    try {
+      await createSubtask(newSubtaskTitle.trim());
+      setNewSubtaskTitle('');
+    } catch (err) {
+      alert('Không thể thêm công việc con: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleRequestInsight = async () => {
+    setAiInsightLoading(true);
+    setAiInsightError('');
+    try {
+      const res = await api.post(`/ai/projects/${id}/insight`);
+      setAiInsight(res.data);
+    } catch (err) {
+      setAiInsightError(err.response?.data?.message || 'Không thể lấy nhận xét từ AI.');
+    } finally {
+      setAiInsightLoading(false);
+    }
+  };
+
+  const handleSuggestSubtasks = async () => {
+    if (!selectedTask) return;
+    setSuggestionLoading(true);
+    setSuggestionError('');
+    try {
+      const res = await api.post(`/ai/tasks/${selectedTask.id}/subtask-suggestions`);
+      setSubtaskSuggestions(res.data.suggestions);
+      if (res.data.suggestions.length === 0) {
+        setSuggestionError('AI không có đề xuất mới cho công việc này.');
+      }
+    } catch (err) {
+      setSuggestionError(err.response?.data?.message || 'Không thể lấy gợi ý từ AI.');
+    } finally {
+      setSuggestionLoading(false);
+    }
+  };
+
+  const handleAddSuggestedSubtask = async (title) => {
+    try {
+      await createSubtask(title);
+      setSubtaskSuggestions(prev => prev.filter(s => s !== title));
+    } catch (err) {
+      alert('Không thể thêm công việc con: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleSuggestAssignees = async () => {
+    if (!selectedTask) return;
+    try {
+      const res = await api.get(`/ai/tasks/${selectedTask.id}/assignee-suggestions`);
+      setAssigneeSuggestions(res.data);
+    } catch (err) {
+      alert('Không thể lấy gợi ý người thực hiện: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleToggleSubtask = async (subTask) => {
+    if (!selectedTask) return;
+    try {
+      const nextStatus = subTask.status === 4 ? 1 : 4;
+      await api.put(`/tasks/${subTask.id}`, {
+        title: subTask.title,
+        description: null,
+        status: nextStatus,
+        priority: 2,
+        dueDate: null,
+        estimatedHours: null,
+        actualHours: null,
+        assigneeId: null
+      });
+      const refreshed = await api.get(`/tasks/${selectedTask.id}`);
+      setSelectedTask(refreshed.data);
+      setTasks(prev => prev.map(t => t.id === selectedTask.id ? refreshed.data : t));
+    } catch (err) {
+      alert('Không thể cập nhật công việc con: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleDeleteSubtask = async (subTaskId) => {
+    if (!selectedTask) return;
+    try {
+      await api.delete(`/tasks/${subTaskId}`);
+      const refreshed = await api.get(`/tasks/${selectedTask.id}`);
+      setSelectedTask(refreshed.data);
+      setTasks(prev => prev.map(t => t.id === selectedTask.id ? refreshed.data : t));
+    } catch (err) {
+      alert('Không thể xóa công việc con: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleAddComment = async (e) => {
+    e.preventDefault();
+    if (!commentText.trim() || !selectedTask) return;
+    try {
+      const res = await api.post(`/tasks/${selectedTask.id}/comments`, { content: commentText });
+      const updatedComments = [...(selectedTask.comments || []), res.data];
+      setSelectedTask(prev => ({
+        ...prev,
+        comments: updatedComments
+      }));
+      setTasks(prev => prev.map(t => t.id === selectedTask.id ? { ...t, comments: updatedComments } : t));
+      setCommentText('');
+    } catch (err) {
+      console.error('Lỗi gửi bình luận:', err);
+      alert('Không thể gửi bình luận.');
+    }
+  };
+
+  if (loading) {
+    return <div className="loading-state">Đang tải dữ liệu dự án...</div>;
+  }
+
+  if (!project) {
+    return (
+      <div className="empty-state">
+        <ErrorOutlineOutlinedIcon style={{ fontSize: 60, color: '#ef4444' }} />
+        <h3>Không tìm thấy dự án</h3>
+        <Link to="/" className="btn-primary">Về Không Gian Làm Việc</Link>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <Navbar />
+
+      <div className="project-detail-layout">
+        <div className="project-header">
+          <div className="header-left">
+            <Link to="/" className="btn-back">
+              <ArrowBackIcon fontSize="small" />
+              <span>Danh sách dự án</span>
+            </Link>
+            <div className="title-group">
+              <span className="badge-code">{project.code}</span>
+              <h2>{project.name}</h2>
+              {healthOverview && (
+                <span className={`health-badge rating-${healthOverview.suggestedRating}`}>
+                  {healthOverview.suggestedRating === 1 ? (
+                    <CheckCircleOutlineIcon style={{ fontSize: 15 }} />
+                  ) : (
+                    <WarningAmberOutlinedIcon style={{ fontSize: 15 }} />
+                  )}
+                  <span>{HEALTH_LABELS[healthOverview.suggestedRating]}</span>
+                </span>
+              )}
+            </div>
+            <p className="project-desc">{project.description}</p>
+          </div>
+          <div className="header-right header-actions">
+            <div className="realtime-status-pill">
+              <span className="pulse-dot" />
+              <span>SignalR: {signalRConnected ? 'Trực tuyến' : 'Đang kết nối...'}</span>
+            </div>
+            <button onClick={() => setShowMemberModal(true)} className="btn-secondary">
+              <PersonAddAlt1OutlinedIcon fontSize="small" />
+              <span>Mời Thành Viên ({project.members?.length || 1})</span>
+            </button>
+            <button onClick={() => setShowTaskModal(true)} className="btn-primary">
+              <AddIcon fontSize="small" />
+              <span>Thêm Công Việc</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="tabs-bar">
+          <button 
+            className={`tab-btn ${activeTab === 'kanban' ? 'active' : ''}`}
+            onClick={() => setActiveTab('kanban')}
+          >
+            <ViewKanbanOutlinedIcon fontSize="small" />
+            <span>Bảng Kanban (Kéo Thả)</span>
+          </button>
+          <button 
+            className={`tab-btn ${activeTab === 'gantt' ? 'active' : ''}`}
+            onClick={() => {
+              setActiveTab('gantt');
+              fetchScheduleData();
+            }}
+          >
+            <AccountTreeOutlinedIcon fontSize="small" />
+            <span>Tiến Độ & Đường Găng (CPM)</span>
+          </button>
+          <button 
+            className={`tab-btn ${activeTab === 'chat' ? 'active' : ''}`}
+            onClick={() => setActiveTab('chat')}
+          >
+            <ForumOutlinedIcon fontSize="small" />
+            <span>Trao Đổi & Trợ Lý AI {chatMessages.length > 0 ? `(${chatMessages.length})` : ''}</span>
+          </button>
+          <button 
+            className={`tab-btn ${activeTab === 'status-reports' ? 'active' : ''}`}
+            onClick={() => setActiveTab('status-reports')}
+          >
+            <AssessmentOutlinedIcon fontSize="small" />
+            <span>Báo Cáo Sức Khỏe ({healthOverview?.reports?.length || 0})</span>
+          </button>
+          <button 
+            className={`tab-btn ${activeTab === 'notes' ? 'active' : ''}`}
+            onClick={() => setActiveTab('notes')}
+          >
+            <DescriptionOutlinedIcon fontSize="small" />
+            <span>Biên Bản Cuộc Họp ({notes.length})</span>
+          </button>
+          <button 
+            className={`tab-btn ${activeTab === 'analytics' ? 'active' : ''}`}
+            onClick={() => setActiveTab('analytics')}
+          >
+            <BarChartOutlinedIcon fontSize="small" />
+            <span>Báo Cáo Phân Bổ (Analytics)</span>
+          </button>
+        </div>
+
+        {activeTab === 'kanban' && (
+          <>
+            <div className="kanban-toolbar">
+              <div className="toolbar-filters">
+                <div className="search-box">
+                  <input
+                    type="text"
+                    placeholder="Tìm theo mã (PRJ-1) hoặc tên công việc..."
+                    value={kanbanSearch}
+                    onChange={(e) => setKanbanSearch(e.target.value)}
+                  />
+                </div>
+
+                <AssigneeSelect
+                  className="filter-assignee-select"
+                  members={project.members || []}
+                  value={kanbanAssignee}
+                  onChange={(val) => setKanbanAssignee(val)}
+                  extraOptions={[
+                    { value: 'ALL', label: 'Tất cả người thực hiện' },
+                    { value: 'UNASSIGNED', label: 'Chưa chỉ định' },
+                  ]}
+                />
+
+                <select
+                  className="filter-select"
+                  value={kanbanPriority}
+                  onChange={(e) => setKanbanPriority(e.target.value)}
+                >
+                  <option value="ALL">Tất cả độ ưu tiên</option>
+                  <option value="4">Khẩn cấp</option>
+                  <option value="3">Cao</option>
+                  <option value="2">Trung bình</option>
+                  <option value="1">Thấp</option>
+                </select>
+
+                {(kanbanSearch || kanbanAssignee !== 'ALL' || kanbanPriority !== 'ALL') && (
+                  <button
+                    type="button"
+                    className="btn-reset-filter"
+                    onClick={() => {
+                      setKanbanSearch('');
+                      setKanbanAssignee('ALL');
+                      setKanbanPriority('ALL');
+                    }}
+                  >
+                    Đặt lại bộ lọc
+                  </button>
+                )}
+              </div>
+
+              <div className="toolbar-summary">
+                Tổng số: {tasks.length} công việc
+              </div>
+            </div>
+
+            <div className="kanban-board">
+              {COLUMNS.map(col => {
+                const colTasks = tasks.filter(t => {
+                  if (t.status !== col.id) return false;
+                  if (kanbanSearch.trim()) {
+                    const matchTitle = matchesSearch(t.title, kanbanSearch);
+                    const matchCode = matchesSearch(t.taskCode, kanbanSearch);
+                    const matchAssignee = matchesSearch(t.assigneeName, kanbanSearch);
+                    if (!matchTitle && !matchCode && !matchAssignee) return false;
+                  }
+                  if (kanbanAssignee === 'UNASSIGNED' && t.assigneeId) return false;
+                  if (kanbanAssignee !== 'ALL' && kanbanAssignee !== 'UNASSIGNED' && t.assigneeId !== kanbanAssignee) return false;
+                  if (kanbanPriority !== 'ALL' && t.priority !== parseInt(kanbanPriority)) return false;
+                  return true;
+                });
+                const isOver = dragOverColId === col.id;
+
+                return (
+                  <div 
+                    key={col.id} 
+                    className={`kanban-column ${isOver ? 'column-drag-over' : ''}`}
+                    onDragOver={(e) => handleDragOver(e, col.id)}
+                    onDragLeave={(e) => handleDragLeave(e, col.id)}
+                    onDrop={(e) => handleDrop(e, col.id)}
+                  >
+                    <div className="column-header" style={{ borderTopColor: col.color }}>
+                      <h3>{col.title}</h3>
+                      <span className="count-badge">{colTasks.length}</span>
+                    </div>
+
+                    <div className="task-list">
+                      {colTasks.length === 0 ? (
+                        <div className="empty-column-placeholder">
+                          {isOver ? 'Thả công việc vào đây...' : 'Chưa có công việc'}
+                        </div>
+                      ) : (
+                        colTasks.map(task => {
+                          const totalSub = task.subTasks?.length || 0;
+                          const doneSub = task.subTasks?.filter(s => s.status === 4).length || 0;
+                          const commentCount = task.comments?.length || 0;
+                          const hasTime = task.estimatedHours != null || task.actualHours != null;
+                          const isOverTime = task.estimatedHours != null && task.actualHours != null && task.actualHours > task.estimatedHours;
+
+                          return (
+                            <div 
+                              key={task.id} 
+                              className={`kanban-task-card priority-border-${task.priority} ${draggedTaskId === task.id ? 'is-dragging' : ''}`}
+                              draggable
+                              onDragStart={(e) => handleDragStart(e, task.id)}
+                              onClick={() => handleOpenTaskDetail(task.id)}
+                            >
+                              <div className="task-card-top">
+                                <span className="task-code">{task.taskCode}</span>
+                                <span className={`priority-badge priority-${task.priority}`}>
+                                  {task.priority === 4 ? 'Khẩn cấp' : task.priority === 3 ? 'Cao' : task.priority === 2 ? 'Trung bình' : 'Thấp'}
+                                </span>
+                              </div>
+
+                              <h4>{task.title}</h4>
+
+                              {task.dueDate && (
+                                <div className="task-meta-due">
+                                  <AccessTimeIcon style={{ fontSize: 14 }} />
+                                  <span>{new Date(task.dueDate).toLocaleDateString('vi-VN')}</span>
+                                </div>
+                              )}
+
+                              {task.assigneeName && (
+                                <div className="task-meta-due" style={{ color: '#2563eb', fontWeight: 600 }}>
+                                  <UserAvatar name={task.assigneeName} avatarUrl={task.assigneeAvatarUrl} size="xs" />
+                                  <span>{task.assigneeName}</span>
+                                </div>
+                              )}
+
+                              {(totalSub > 0 || hasTime || commentCount > 0) && (
+                                <div className="task-card-badges">
+                                  {totalSub > 0 && (
+                                    <span className={`meta-pill ${doneSub === totalSub ? 'subtask-done' : ''}`}>
+                                      <CheckCircleOutlineIcon style={{ fontSize: 12 }} />
+                                      <span>{doneSub}/{totalSub} việc con</span>
+                                    </span>
+                                  )}
+                                  {hasTime && (
+                                    <span className={`meta-pill ${isOverTime ? 'time-over' : ''}`}>
+                                      <AccessTimeIcon style={{ fontSize: 12 }} />
+                                      <span>{task.actualHours ?? 0}h / {task.estimatedHours ?? 0}h</span>
+                                    </span>
+                                  )}
+                                  {commentCount > 0 && (
+                                    <span className="meta-pill">
+                                      <ChatBubbleOutlineOutlinedIcon style={{ fontSize: 12 }} />
+                                      <span>{commentCount}</span>
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+
+                              <div className="task-card-actions">
+                                <span className="drag-hint"><DragIndicatorIcon style={{ fontSize: 14 }} /> Kéo thả hoặc chọn</span>
+                                <select 
+                                  value={task.status} 
+                                  onClick={(e) => e.stopPropagation()}
+                                  onChange={(e) => handleUpdateStatus(task.id, parseInt(e.target.value))}
+                                  className="status-dropdown"
+                                >
+                                  {COLUMNS.map(c => (
+                                    <option key={c.id} value={c.id}>{c.title}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+
+        {activeTab === 'status-reports' && healthOverview && (
+          <div className="status-reports-layout">
+            <div className={`health-overview-banner health-rating-${healthOverview.suggestedRating}`}>
+              <div className="health-banner-left">
+                <div className="health-status-row">
+                  <h3>Chẩn Đoán Sức Khỏe Dự Án (R/A/G Health Check)</h3>
+                  <span className={`health-badge rating-${healthOverview.suggestedRating}`}>
+                    {HEALTH_LABELS[healthOverview.suggestedRating]}
+                  </span>
+                </div>
+                <p>{healthOverview.healthSummary}</p>
+              </div>
+
+              <div className="health-banner-metrics">
+                <div className="metric-pill success">
+                  <span>Tiến độ chung</span>
+                  <strong>{healthOverview.completionRate}%</strong>
+                </div>
+                <div className="metric-pill">
+                  <span>Đã hoàn thành</span>
+                  <strong>{healthOverview.completedTasks}/{healthOverview.totalTasks}</strong>
+                </div>
+                <div className={`metric-pill ${healthOverview.overdueTasks > 0 ? 'danger' : ''}`}>
+                  <span>Việc quá hạn</span>
+                  <strong>{healthOverview.overdueTasks}</strong>
+                </div>
+                <button onClick={handleOpenReportModal} className="btn-primary">
+                  <AddIcon fontSize="small" />
+                  <span>Lập Báo Cáo Kỳ Này</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="ai-insight-panel">
+              <div className="ai-insight-header">
+                <div>
+                  <h4>Nhận xét của trợ lý AI</h4>
+                  <p>Phân tích số liệu hiện tại của dự án và đề xuất việc nên làm ngay</p>
+                </div>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={handleRequestInsight}
+                  disabled={aiInsightLoading}
+                >
+                  {aiInsightLoading ? 'AI đang phân tích...' : aiInsight ? 'Phân tích lại' : 'Phân tích dự án'}
+                </button>
+              </div>
+              {aiInsightError && <p className="ai-error-text">{aiInsightError}</p>}
+              {aiInsight && (
+                <div className="ai-insight-body">
+                  <FormattedAiText content={aiInsight.insight} />
+                  <span>Tạo lúc {new Date(aiInsight.generatedAt).toLocaleTimeString('vi-VN')}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="status-timeframe-bar">
+              <div className="timeframe-inputs">
+                <label>Kiểm tra khung thời gian báo cáo:</label>
+                <input
+                  type="date"
+                  value={timeframeFilter.startDate}
+                  onChange={(e) => handleTimeframeChange('startDate', e.target.value)}
+                />
+                <span>đến</span>
+                <input
+                  type="date"
+                  value={timeframeFilter.endDate}
+                  onChange={(e) => handleTimeframeChange('endDate', e.target.value)}
+                />
+                {(timeframeFilter.startDate || timeframeFilter.endDate) && (
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => {
+                      setTimeframeFilter({ startDate: '', endDate: '' });
+                      fetchHealthOverview('', '');
+                    }}
+                  >
+                    Xóa lọc
+                  </button>
+                )}
+              </div>
+
+              {healthOverview.outOfRangeTasks > 0 && (
+                <div className="out-of-range-notice">
+                  <WarningAmberOutlinedIcon fontSize="small" />
+                  <span>Có {healthOverview.outOfRangeTasks} công việc tạo ngoài khung thời gian này</span>
+                </div>
+              )}
+            </div>
+
+            {healthOverview.reports?.length === 0 ? (
+              <div className="empty-state">
+                <AssessmentOutlinedIcon style={{ fontSize: 60, color: '#94a3b8' }} />
+                <h3>Chưa có báo cáo trạng thái định kỳ nào</h3>
+                <p>Lập báo cáo định kỳ để lưu lại tiến độ, kết quả đạt được và các rủi ro cần xử lý của dự án</p>
+                <button onClick={handleOpenReportModal} className="btn-primary">
+                  <AddIcon fontSize="small" />
+                  <span>Tạo Báo Cáo Trạng Thái Đầu Tiên</span>
+                </button>
+              </div>
+            ) : (
+              <div className="status-reports-grid">
+                {healthOverview.reports.map(report => (
+                  <div key={report.id} className={`status-report-card rating-border-${report.healthRating}`}>
+                    <div className="report-card-header">
+                      <div>
+                        <span className={`health-badge rating-${report.healthRating}`}>
+                          {HEALTH_LABELS[report.healthRating]}
+                        </span>
+                        <h4 style={{ marginTop: 8 }}>{report.title}</h4>
+                      </div>
+                      <button onClick={() => handleDeleteReport(report.id)} className="btn-delete" title="Xóa báo cáo">
+                        <DeleteOutlineOutlinedIcon fontSize="small" />
+                      </button>
+                    </div>
+
+                    <div className="report-meta-row">
+                      <span>
+                        <CalendarTodayOutlinedIcon style={{ fontSize: 14 }} />
+                        Kỳ: {new Date(report.reportStartDate).toLocaleDateString('vi-VN')} - {new Date(report.reportEndDate).toLocaleDateString('vi-VN')}
+                      </span>
+                      <span>Người lập: <strong>{report.authorName}</strong></span>
+                    </div>
+
+                    <div className="report-snapshot-bar">
+                      <div className="snap-item">
+                        <span>Tiến độ lúc lập</span>
+                        <strong>{report.completionRateSnapshot}%</strong>
+                      </div>
+                      <div className="snap-item">
+                        <span>Hoàn thành</span>
+                        <strong>{report.completedTasksSnapshot}/{report.totalTasksSnapshot} task</strong>
+                      </div>
+                      <div className="snap-item">
+                        <span>Quá hạn</span>
+                        <strong style={{ color: report.overdueTasksSnapshot > 0 ? '#ef4444' : '#0f172a' }}>
+                          {report.overdueTasksSnapshot} task
+                        </strong>
+                      </div>
+                    </div>
+
+                    <div className="report-section">
+                      <strong>Kết quả đạt được trong kỳ:</strong>
+                      <p>{report.keyAccomplishments}</p>
+                    </div>
+
+                    {report.upcomingPlan && (
+                      <div className="report-section">
+                        <strong>Kế hoạch kỳ tiếp theo:</strong>
+                        <p>{report.upcomingPlan}</p>
+                      </div>
+                    )}
+
+                    {report.risksAndBlockers && (
+                      <div className="report-section risk-box">
+                        <strong>Rủi ro & Vướng mắc cần tháo gỡ:</strong>
+                        <p>{report.risksAndBlockers}</p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'notes' && (
+          <div className="notes-layout">
+            <div className="notes-header">
+              <div>
+                <h3>Nhật Ký & Biên Bản Cuộc Họp Dự Án</h3>
+                <p>Lưu vết các quyết định quan trọng và phân công hành động (Action Items)</p>
+              </div>
+              <button onClick={() => setShowNoteModal(true)} className="btn-primary">
+                <AddIcon fontSize="small" />
+                <span>Ghi Biên Bản Mới</span>
+              </button>
+            </div>
+
+            {notes.length === 0 ? (
+              <div className="empty-state">
+                <DescriptionOutlinedIcon style={{ fontSize: 60, color: '#94a3b8' }} />
+                <h3>Chưa có biên bản cuộc họp nào</h3>
+                <p>Lưu lại nội dung cuộc họp để cả nhóm cùng theo dõi</p>
+                <button onClick={() => setShowNoteModal(true)} className="btn-primary">
+                  <AddIcon fontSize="small" />
+                  <span>Tạo Biên Bản Đầu Tiên</span>
+                </button>
+              </div>
+            ) : (
+              <div className="notes-grid">
+                {notes.map(note => (
+                  <div key={note.id} className="note-card">
+                    <div className="note-card-header">
+                      <h4>{note.title}</h4>
+                      <button onClick={() => handleDeleteNote(note.id)} className="btn-delete" title="Xóa">
+                        <DeleteOutlineOutlinedIcon fontSize="small" />
+                      </button>
+                    </div>
+                    <div className="note-meta">
+                      <span><CalendarTodayOutlinedIcon style={{ fontSize: 14 }} /> {new Date(note.meetingDate).toLocaleDateString('vi-VN')}</span>
+                      {note.attendees && <span><PeopleAltOutlinedIcon style={{ fontSize: 14 }} /> {note.attendees}</span>}
+                    </div>
+                    <div className="note-content">
+                      <p>{note.content}</p>
+                    </div>
+                    {note.actionItems && (
+                      <div className="note-action-items">
+                        <strong>Hạng mục hành động:</strong>
+                        <p>{note.actionItems}</p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'chat' && (
+          <div className="project-chat-wrapper">
+            <div className="chat-header">
+              <div className="chat-header-title">
+                <ForumOutlinedIcon style={{ color: '#4f46e5' }} />
+                <div>
+                  <h3>Phòng Trao Đổi Dự Án & Trợ Lý AI Gemini</h3>
+                  <p>Trò chuyện thời gian thực qua SignalR và trao đổi thông minh cùng trợ lý AI</p>
+                </div>
+              </div>
+              <div className="realtime-status-pill">
+                <span className="pulse-dot" />
+                <span>{signalRConnected ? 'Kết nối SignalR trực tuyến' : 'Đang kết nối...'}</span>
+              </div>
+            </div>
+
+            <div className="chat-quick-actions">
+              <span className="quick-title">Gợi ý câu hỏi AI:</span>
+              <button
+                type="button"
+                className="quick-pill"
+                onClick={() => handleSendMessage(null, true, '@ai Tóm tắt tiến độ hiện tại và các điểm nghẽn chính')}
+              >
+                <AutoAwesomeOutlinedIcon style={{ fontSize: 13 }} />
+                <span>@ai Tóm tắt tiến độ</span>
+              </button>
+              <button
+                type="button"
+                className="quick-pill"
+                onClick={() => handleSendMessage(null, true, '@ai Rủi ro lớn nhất và giải pháp khắc phục là gì?')}
+              >
+                <AutoAwesomeOutlinedIcon style={{ fontSize: 13 }} />
+                <span>@ai Phân tích rủi ro</span>
+              </button>
+              <button
+                type="button"
+                className="quick-pill"
+                onClick={() => handleSendMessage(null, true, '@ai Đề xuất phân công và giải pháp tăng tốc dự án')}
+              >
+                <AutoAwesomeOutlinedIcon style={{ fontSize: 13 }} />
+                <span>@ai Gợi ý tăng tốc</span>
+              </button>
+            </div>
+
+            <div className="chat-messages-scroll">
+              {chatLoading ? (
+                <p style={{ textAlign: 'center', color: '#64748b', margin: '2rem 0' }}>Đang tải lịch sử trao đổi...</p>
+              ) : chatMessages.length === 0 ? (
+                <div className="empty-chat">
+                  <ForumOutlinedIcon style={{ fontSize: 48 }} />
+                  <h4>Chưa có trao đổi nào trong dự án</h4>
+                  <p>Gửi tin nhắn đầu tiên để cùng thảo luận, hoặc bấm "Hỏi AI" để nhận tư vấn dự án từ Gemini!</p>
+                </div>
+              ) : (
+                chatMessages.map((m) => {
+                  const isSelf = currentUser && m.senderId === currentUser.id;
+                  const rowClass = m.isAiGenerated
+                    ? 'ai-message'
+                    : isSelf
+                    ? 'self-message'
+                    : 'user-message';
+
+                  return (
+                    <div key={m.id} className={`chat-bubble-row ${rowClass}`}>
+                      <div className="avatar-box">
+                        {m.isAiGenerated ? (
+                          <AutoAwesomeOutlinedIcon style={{ fontSize: 18 }} />
+                        ) : (
+                          (m.senderName || 'U').substring(0, 2).toUpperCase()
+                        )}
+                      </div>
+                      <div className="bubble-body">
+                        <div className="sender-meta">
+                          <span>{m.senderName}</span>
+                          {m.isAiGenerated && (
+                            <span className="ai-badge">
+                              <AutoAwesomeOutlinedIcon style={{ fontSize: 11 }} /> AI Assistant
+                            </span>
+                          )}
+                          <span className="time-label">
+                            {new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        <div className="message-text">
+                          <FormattedAiText content={m.content} />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+              {aiThinking && (
+                <div className="chat-bubble-row ai-message ai-typing-row">
+                  <div className="avatar-box">
+                    <AutoAwesomeOutlinedIcon className="pulse-ai-icon" style={{ fontSize: 18 }} />
+                  </div>
+                  <div className="bubble-body">
+                    <div className="sender-meta">
+                      <span>Trợ lý AI Gemini</span>
+                      <span className="ai-badge">
+                        <AutoAwesomeOutlinedIcon style={{ fontSize: 11 }} /> Đang phản hồi...
+                      </span>
+                    </div>
+                    <div className="ai-typing-indicator">
+                      <span className="typing-dot" />
+                      <span className="typing-dot" />
+                      <span className="typing-dot" />
+                      <span className="typing-text">Trợ lý AI đang phân tích dữ liệu dự án...</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div ref={chatBottomRef} />
+            </div>
+
+            <div className="chat-composer-area">
+              <form
+                className="composer-form"
+                onSubmit={(e) => handleSendMessage(e, false)}
+              >
+                <input
+                  type="text"
+                  className="chat-input"
+                  placeholder="Nhập tin nhắn thảo luận (gõ @ai để hỏi trợ lý Gemini)..."
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  disabled={chatSending}
+                />
+                <button
+                  type="button"
+                  className="btn-ask-ai"
+                  disabled={chatSending || !chatInput.trim()}
+                  onClick={(e) => handleSendMessage(e, true)}
+                  title="Gửi kèm yêu cầu Trợ lý AI phân tích"
+                >
+                  <AutoAwesomeOutlinedIcon style={{ fontSize: 15 }} />
+                  <span>Hỏi AI</span>
+                </button>
+                <button
+                  type="submit"
+                  className="btn-send-message"
+                  disabled={chatSending || !chatInput.trim()}
+                >
+                  <SendOutlinedIcon style={{ fontSize: 16 }} />
+                  <span>{chatSending ? 'Đang gửi...' : 'Gửi'}</span>
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+{activeTab === 'gantt' && (
+          <div className="gantt-cpm-layout">
+            <div className="cpm-summary-grid">
+              <div className="cpm-stat-card card-duration">
+                <div className="card-top-header">
+                  <span className="stat-title">Tổng Thời Lượng Dự Án</span>
+                  <div className="stat-icon-badge badge-duration">
+                    <AccessTimeIcon fontSize="small" />
+                  </div>
+                </div>
+                <strong className="stat-val duration-text">{scheduleData?.totalProjectDays || 0} ngày</strong>
+                <span className="stat-hint">Tính từ ngày bắt đầu dự án</span>
+              </div>
+              <div className="cpm-stat-card card-projected">
+                <div className="card-top-header">
+                  <span className="stat-title">Ngày Hoàn Thành Dự Kiến</span>
+                  <div className="stat-icon-badge badge-projected">
+                    <CalendarTodayOutlinedIcon fontSize="small" />
+                  </div>
+                </div>
+                <strong className="stat-val projected-text">
+                  {scheduleData?.projectedEndDate ? new Date(scheduleData.projectedEndDate).toLocaleDateString('vi-VN') : '---'}
+                </strong>
+                <span className="stat-hint">Thời điểm cán đích theo đường găng</span>
+              </div>
+              <div className="cpm-stat-card card-critical">
+                <div className="card-top-header">
+                  <span className="stat-title">Công Việc Thuộc Đường Găng</span>
+                  <div className="stat-icon-badge badge-critical-accent">
+                    <WarningAmberOutlinedIcon fontSize="small" />
+                  </div>
+                </div>
+                <strong className="stat-val critical-text">{scheduleData?.criticalTasksCount || 0} việc</strong>
+                <span className="stat-hint">Độ trôi (Total Float) = 0 ngày</span>
+              </div>
+              <div className="cpm-stat-card card-deps">
+                <div className="card-top-header">
+                  <span className="stat-title">Số Lượng Ràng Buộc (FS)</span>
+                  <div className="stat-icon-badge badge-deps">
+                    <AccountTreeOutlinedIcon fontSize="small" />
+                  </div>
+                </div>
+                <strong className="stat-val deps-text">{scheduleData?.dependencies?.length || 0} liên kết</strong>
+                <span className="stat-hint">Quan hệ hoàn thành - bắt đầu</span>
+              </div>
+            </div>
+
+            <div className="cpm-action-toolbar">
+              <div className="toolbar-info">
+                <span className="legend-label">Chú giải:</span>
+                <span className="critical-legend">Đường găng (Bắt buộc đúng hạn)</span>
+                <span className="float-legend">Có thời gian dự trữ (Slack)</span>
+              </div>
+              <button
+                type="button"
+                className="btn-add-dep"
+                onClick={() => {
+                  setDepError('');
+                  setShowDependencyModal(true);
+                }}
+              >
+                <AddIcon fontSize="small" />
+                <span>Thêm Ràng Buộc (Finish-to-Start)</span>
+              </button>
+            </div>
+
+            <div className="cpm-table-wrapper">
+              <table className="cpm-table">
+                <thead>
+                  <tr>
+                    <th>Mã việc</th>
+                    <th>Tên công việc</th>
+                    <th className="col-center">Thời lượng</th>
+                    <th className="col-center">ES / EF</th>
+                    <th className="col-center">LS / LF</th>
+                    <th className="col-center">Độ trôi (Float)</th>
+                    <th className="col-center">Phân loại</th>
+                    <th>Biểu đồ tiến độ (Gantt CPM Timeline)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {scheduleLoading ? (
+                    <tr>
+                      <td colSpan="8" style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>
+                        Đang tính toán ma trận đường găng CPM...
+                      </td>
+                    </tr>
+                  ) : !scheduleData || scheduleData.schedule.length === 0 ? (
+                    <tr>
+                      <td colSpan="8" style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>
+                        Chưa có dữ liệu công việc để thiết lập tiến độ.
+                      </td>
+                    </tr>
+                  ) : (
+                    scheduleData.schedule.map((item) => {
+                      const totalDays = Math.max(1, scheduleData.totalProjectDays || 1);
+                      const leftPercent = Math.max(0, Math.min(95, (item.earlyStartDay / totalDays) * 100));
+                      const widthPercent = Math.max(4, Math.min(100 - leftPercent, (item.durationDays / totalDays) * 100));
+
+                      return (
+                        <tr key={item.taskId} className={item.isCritical ? 'is-critical-row' : ''}>
+                          <td>
+                            <span className="task-code-badge">{item.taskCode}</span>
+                          </td>
+                          <td>
+                            <div className="task-title-text">{item.title}</div>
+                            {item.assigneeName && (
+                              <small className="task-assignee-text">Phụ trách: {item.assigneeName}</small>
+                            )}
+                          </td>
+                          <td className="col-center tabular-text">{item.durationDays} ngày</td>
+                          <td className="col-center tabular-text">N{item.earlyStartDay} - N{item.earlyFinishDay}</td>
+                          <td className="col-center tabular-text">N{item.lateStartDay} - N{item.lateFinishDay}</td>
+                          <td className="col-center">
+                            <span className={`float-pill ${item.isCritical ? 'zero-float' : ''}`}>
+                              {item.totalFloatDays} ngày
+                            </span>
+                          </td>
+                          <td className="col-center">
+                            {item.isCritical ? (
+                              <span className="badge-critical">Đường găng</span>
+                            ) : (
+                              <span className="badge-normal">Dự trữ ({item.totalFloatDays}d)</span>
+                            )}
+                          </td>
+                          <td className="gantt-bar-cell">
+                            <div className="gantt-track">
+                              <div
+                                className={`gantt-bar ${item.isCritical ? 'bar-critical' : 'bar-normal'}`}
+                                style={{
+                                  left: `${leftPercent}%`,
+                                  width: `${widthPercent}%`,
+                                }}
+                                title={`${item.taskCode}: ${item.title} (${item.durationDays} ngày, ES: ${item.earlyStartDay}, EF: ${item.earlyFinishDay}, Float: ${item.totalFloatDays}d)`}
+                              >
+                                {item.durationDays}d
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="dependencies-card">
+              <div className="deps-card-header">
+                <div>
+                  <h4>Danh Sách Ràng Buộc Thứ Tự Thực Hiện (Precedence Relationships)</h4>
+                  <p>Mô hình quan hệ Finish-to-Start (FS): Công việc sau chỉ được bắt đầu sau khi công việc trước đã hoàn tất.</p>
+                </div>
+                {scheduleData?.dependencies?.length > 0 && (
+                  <button
+                    type="button"
+                    className="btn-add-dep-mini"
+                    onClick={() => {
+                      setDepError('');
+                      setShowDependencyModal(true);
+                    }}
+                  >
+                    <AddIcon fontSize="small" />
+                    <span>Thêm ràng buộc</span>
+                  </button>
+                )}
+              </div>
+
+              {(!scheduleData?.dependencies || scheduleData.dependencies.length === 0) ? (
+                <div className="empty-deps-box">
+                  <AccountTreeOutlinedIcon className="empty-deps-icon" />
+                  <div className="empty-deps-title">Chưa có ràng buộc phụ thuộc nào</div>
+                  <div className="empty-deps-desc">
+                    Tạo quan hệ Finish-to-Start (FS) để hệ thống tự động tính toán đường găng (CPM) và ngày hoàn thành dự án.
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-add-dep-empty"
+                    onClick={() => {
+                      setDepError('');
+                      setShowDependencyModal(true);
+                    }}
+                  >
+                    <AddIcon fontSize="small" />
+                    <span>Thêm ràng buộc đầu tiên</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="dep-list">
+                  {scheduleData.dependencies.map((dep) => (
+                    <div key={dep.id} className="dep-chip">
+                      <span className="chip-code">{dep.predecessorCode}</span>
+                      <span className="dep-arrow">➔</span>
+                      <span className="chip-code">{dep.successorCode}</span>
+                      {dep.lagDays > 0 && <span className="chip-lag">+{dep.lagDays} ngày</span>}
+                      <button
+                        type="button"
+                        className="btn-del-dep"
+                        title="Xóa ràng buộc này"
+                        onClick={() => handleDeleteDependency(dep.id)}
+                      >
+                        <CloseIcon style={{ fontSize: 14 }} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'analytics' && analytics && (
+          <div className="analytics-layout">
+            <div className="export-actions-bar">
+              <button
+                type="button"
+                className="btn-export-report"
+                onClick={() => exportTasksToExcelCsv(project, tasks)}
+              >
+                <DownloadOutlinedIcon style={{ fontSize: 16 }} />
+                <span>Xuất Excel Công việc (.csv)</span>
+              </button>
+              <button
+                type="button"
+                className="btn-export-report"
+                onClick={() => exportScheduleToExcelCsv(project, scheduleData)}
+              >
+                <DownloadOutlinedIcon style={{ fontSize: 16 }} />
+                <span>Xuất Excel Tiến độ CPM (.csv)</span>
+              </button>
+              <button
+                type="button"
+                className="btn-export-report"
+                onClick={() => printExecutiveReport(project, tasks, healthOverview)}
+              >
+                <PrintOutlinedIcon style={{ fontSize: 16 }} />
+                <span>In Báo cáo Tổng hợp (PDF)</span>
+              </button>
+            </div>
+
+            <div className="stats-cards-grid">
+              <div className="stat-card">
+                <span className="stat-label">Tổng số công việc</span>
+                <strong className="stat-value">{analytics.totalTasks}</strong>
+              </div>
+              <div className="stat-card">
+                <span className="stat-label">Tỷ lệ hoàn thành</span>
+                <strong className="stat-value text-success">{analytics.completionRate}%</strong>
+              </div>
+              <div className="stat-card">
+                <span className="stat-label">Đang thực hiện</span>
+                <strong className="stat-value text-primary">{analytics.inProgressTasks}</strong>
+              </div>
+              <div className="stat-card">
+                <span className="stat-label">Chờ duyệt</span>
+                <strong className="stat-value text-warning">{analytics.inReviewTasks}</strong>
+              </div>
+            </div>
+
+            <div className="analytics-card">
+              <h3><PeopleAltOutlinedIcon fontSize="small" /> Thống Kê Phân Bổ Công Việc Theo Thành Viên (Workload Allocation)</h3>
+              <p className="section-desc">Theo dõi tỷ lệ phân bổ khối lượng công việc và tiến độ hoàn thành của từng thành viên trong dự án</p>
+
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Thành viên</th>
+                    <th>Email</th>
+                    <th>Công việc giao</th>
+                    <th>Đã xong</th>
+                    <th>Tỷ lệ phân bổ tải</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {analytics.memberAllocations?.map(m => (
+                    <tr key={m.userId}>
+                      <td><strong>{m.fullName}</strong></td>
+                      <td>{m.email}</td>
+                      <td>{m.totalTasks} task</td>
+                      <td><span className="badge-done">{m.completedTasks} task</span></td>
+                      <td>
+                        <div className="allocation-progress">
+                          <div className="progress-bar">
+                            <div className="progress-fill" style={{ width: `${m.allocationPercentage}%` }}></div>
+                          </div>
+                          <span>{m.allocationPercentage}%</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="activity-timeline-card">
+              <h3>
+                <HistoryIcon fontSize="small" style={{ color: '#6366f1' }} />
+                <span>Nhật Ký Hoạt Động Dự Án (Audit Log)</span>
+              </h3>
+              {activities.length === 0 ? (
+                <p className="activity-empty">Chưa có lịch sử hoạt động nào được ghi nhận trong dự án này.</p>
+              ) : (
+                <div className="activity-list">
+                  {activities.map((act) => (
+                    <div key={act.id} className="activity-row">
+                      <UserAvatar
+                        name={act.actorName}
+                        avatarUrl={act.actorAvatarUrl}
+                        size="sm"
+                      />
+                      <div className="activity-content">
+                        <div className="activity-line">
+                          <strong>{act.actorName}</strong>
+                          {act.targetCode && <span className="activity-code">{act.targetCode}</span>}
+                          <span>{act.description}</span>
+                        </div>
+                        <div className="activity-time">
+                          {new Date(act.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}{' '}
+                          · {new Date(act.createdAt).toLocaleDateString('vi-VN')}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {showReportModal && (
+          <div className="modal-backdrop">
+            <div className="modal-card">
+              <h2>Lập Báo Cáo Trạng Thái & Sức Khỏe Dự Án</h2>
+              <p>Ghi nhận đánh giá R/A/G và tự động lưu snapshot số liệu tiến độ hiện tại</p>
+
+              {reportError && (
+                <div className="alert-error">
+                  <ErrorOutlineOutlinedIcon fontSize="small" />
+                  <span>{reportError}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleCreateReport}>
+                <div className="form-group">
+                  <label>Tiêu đề kỳ báo cáo *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ví dụ: Báo cáo tiến độ Sprint 3 - Tuần 1 Tháng 11"
+                    value={newReport.title}
+                    onChange={(e) => setNewReport({ ...newReport, title: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Từ ngày *</label>
+                    <input
+                      type="date"
+                      required
+                      value={newReport.reportStartDate}
+                      onChange={(e) => {
+                        setNeedsOutOfRangeConfirm(false);
+                        setReportError('');
+                        setNewReport({ ...newReport, reportStartDate: e.target.value });
+                      }}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Đến ngày *</label>
+                    <input
+                      type="date"
+                      required
+                      value={newReport.reportEndDate}
+                      onChange={(e) => {
+                        setNeedsOutOfRangeConfirm(false);
+                        setReportError('');
+                        setNewReport({ ...newReport, reportEndDate: e.target.value });
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Đánh giá sức khỏe dự án (R/A/G Rating)</label>
+                  <select
+                    value={newReport.healthRating}
+                    onChange={(e) => setNewReport({ ...newReport, healthRating: parseInt(e.target.value) })}
+                  >
+                    <option value={1}>Xanh - Đúng tiến độ (On Track)</option>
+                    <option value={2}>Vàng - Có rủi ro cần lưu ý (At Risk)</option>
+                    <option value={3}>Đỏ - Chậm tiến độ / Nguy cấp (Delayed)</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Kết quả đạt được trong kỳ *</label>
+                  <textarea
+                    rows={3}
+                    required
+                    placeholder="Các hạng mục, tính năng hoặc mục tiêu đã hoàn thành..."
+                    value={newReport.keyAccomplishments}
+                    onChange={(e) => setNewReport({ ...newReport, keyAccomplishments: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Kế hoạch trọng tâm kỳ tiếp theo</label>
+                  <textarea
+                    rows={2}
+                    placeholder="Các đầu việc ưu tiên triển khai trong tuần tới..."
+                    value={newReport.upcomingPlan}
+                    onChange={(e) => setNewReport({ ...newReport, upcomingPlan: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Rủi ro & Vướng mắc (Risks / Blockers)</label>
+                  <textarea
+                    rows={2}
+                    placeholder="Các vấn đề kỹ thuật, nhân sự hoặc phụ thuộc cần hỗ trợ..."
+                    value={newReport.risksAndBlockers}
+                    onChange={(e) => setNewReport({ ...newReport, risksAndBlockers: e.target.value })}
+                  />
+                </div>
+
+                <div className="modal-actions">
+                  <button type="button" onClick={() => setShowReportModal(false)} className="btn-secondary">Hủy</button>
+                  <button type="submit" className="btn-primary">
+                    {needsOutOfRangeConfirm ? 'Xác Nhận Lưu (Bỏ Qua Cảnh Báo)' : 'Lưu Báo Cáo'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {showMemberModal && (
+          <div className="modal-backdrop">
+            <div className="modal-card">
+              <h2>Mời Thành Viên Vào Dự Án</h2>
+              <p>Nhập email thành viên đã đăng ký tài khoản trên hệ thống</p>
+
+              {project.members?.length > 0 && (
+                <div className="project-members-strip">
+                  {project.members.map((m) => (
+                    <div key={m.userId} className="project-member-chip" title={m.email}>
+                      <UserAvatar name={m.fullName} email={m.email} avatarUrl={m.avatarUrl} size="xs" />
+                      <span>{m.fullName}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {memberError && (
+                <div className="alert-error">
+                  <ErrorOutlineOutlinedIcon fontSize="small" />
+                  <span>{memberError}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleInviteMember}>
+                <div className="form-group">
+                  <label>Email thành viên *</label>
+                  <input 
+                    type="email" 
+                    required 
+                    placeholder="thanhvien@congty.com"
+                    value={memberEmail}
+                    onChange={(e) => setMemberEmail(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Vai trò dự án</label>
+                  <select 
+                    value={memberRole} 
+                    onChange={(e) => setMemberRole(parseInt(e.target.value))}
+                  >
+                    <option value={2}>Quản lý dự án (Project Manager)</option>
+                    <option value={3}>Thành viên thực hiện (Member)</option>
+                    <option value={4}>Người xem / Khách (Viewer)</option>
+                  </select>
+                </div>
+
+                <div className="modal-actions">
+                  <button type="button" onClick={() => setShowMemberModal(false)} className="btn-secondary">Hủy</button>
+                  <button type="submit" className="btn-primary">Thêm Thành Viên</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {showDependencyModal && (
+          <div className="modal-backdrop">
+            <div className="modal-card">
+              <h2>Thêm Ràng Buộc Thứ Tự Công Việc</h2>
+              <p>Thiết lập quan hệ Finish-to-Start (FS) nhằm tự động cập nhật tiến độ và đường găng (CPM).</p>
+
+              {depError && (
+                <div className="alert-error">
+                  <ErrorOutlineOutlinedIcon fontSize="small" />
+                  <span>{depError}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleAddDependency}>
+                <div className="form-group">
+                  <label>Công việc đi trước (Predecessor) *</label>
+                  <select
+                    required
+                    value={newDep.predecessorTaskId}
+                    onChange={(e) => setNewDep({ ...newDep, predecessorTaskId: e.target.value })}
+                  >
+                    <option value="">-- Chọn công việc đi trước --</option>
+                    {tasks.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.taskCode}: {t.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Công việc đi sau (Successor) *</label>
+                  <select
+                    required
+                    value={newDep.successorTaskId}
+                    onChange={(e) => setNewDep({ ...newDep, successorTaskId: e.target.value })}
+                  >
+                    <option value="">-- Chọn công việc đi sau --</option>
+                    {tasks
+                      .filter((t) => t.id !== newDep.predecessorTaskId)
+                      .map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.taskCode}: {t.title}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Độ trễ cách ngày (Lag Days)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="180"
+                    value={newDep.lagDays}
+                    onChange={(e) => setNewDep({ ...newDep, lagDays: e.target.value })}
+                    placeholder="Mặc định 0 ngày (bắt đầu ngay sau khi việc trước xong)"
+                  />
+                </div>
+
+                <div className="modal-actions">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDepError('');
+                      setShowDependencyModal(false);
+                    }}
+                    className="btn-secondary"
+                  >
+                    Hủy bỏ
+                  </button>
+                  <button type="submit" className="btn-primary">
+                    Xác nhận liên kết
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {showTaskModal && (
+          <div className="modal-backdrop">
+            <div className="modal-card">
+              <h2>Tạo Công Việc Mới</h2>
+              <form onSubmit={handleCreateTask}>
+                <div className="form-group">
+                  <label>Tiêu đề công việc *</label>
+                  <input 
+                    type="text" 
+                    required 
+                    placeholder="Ví dụ: Thiết kế giao diện đăng nhập"
+                    value={newTask.title}
+                    onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Người thực hiện (Assignee)</label>
+                  <AssigneeSelect
+                    members={project.members || []}
+                    value={newTask.assigneeId || ''}
+                    onChange={(val) => setNewTask({ ...newTask, assigneeId: val })}
+                    placeholder="-- Chưa chỉ định (Unassigned) --"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Mô tả chi tiết</label>
+                  <textarea 
+                    rows={3} 
+                    placeholder="Chi tiết yêu cầu công việc..."
+                    value={newTask.description}
+                    onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Độ ưu tiên</label>
+                    <select 
+                      value={newTask.priority} 
+                      onChange={(e) => setNewTask({ ...newTask, priority: e.target.value })}
+                    >
+                      <option value={1}>Thấp</option>
+                      <option value={2}>Trung bình</option>
+                      <option value={3}>Cao</option>
+                      <option value={4}>Khẩn cấp</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Hạn hoàn thành</label>
+                    <input 
+                      type="date" 
+                      value={newTask.dueDate}
+                      onChange={(e) => setNewTask({ ...newTask, dueDate: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Số giờ ước lượng (Estimated Hours)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    placeholder="Ví dụ: 8"
+                    value={newTask.estimatedHours}
+                    onChange={(e) => setNewTask({ ...newTask, estimatedHours: e.target.value })}
+                  />
+                </div>
+
+                <div className="modal-actions">
+                  <button type="button" onClick={() => setShowTaskModal(false)} className="btn-secondary">Hủy</button>
+                  <button type="submit" className="btn-primary">Tạo Công Việc</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {showNoteModal && (
+          <div className="modal-backdrop">
+            <div className="modal-card">
+              <h2>Ghi Biên Bản Cuộc Họp</h2>
+              <p>Lưu lại nội dung trao đổi, kết luận và phân công sau buổi họp</p>
+
+              <form onSubmit={handleCreateNote}>
+                <div className="form-group">
+                  <label>Chủ đề cuộc họp *</label>
+                  <input 
+                    type="text" 
+                    required 
+                    placeholder="Ví dụ: Họp Sprint Review tuần 42"
+                    value={newNote.title}
+                    onChange={(e) => setNewNote({ ...newNote, title: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Ngày họp</label>
+                    <input 
+                      type="date" 
+                      required
+                      value={newNote.meetingDate}
+                      onChange={(e) => setNewNote({ ...newNote, meetingDate: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Người tham dự</label>
+                    <input 
+                      type="text" 
+                      placeholder="Tiến, Minh, Hương..."
+                      value={newNote.attendees}
+                      onChange={(e) => setNewNote({ ...newNote, attendees: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Nội dung thảo luận & Quyết định *</label>
+                  <textarea 
+                    rows={4} 
+                    required
+                    placeholder="Tóm tắt các vấn đề đã bàn bạc và thống nhất..."
+                    value={newNote.content}
+                    onChange={(e) => setNewNote({ ...newNote, content: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Hạng mục hành động (Action Items)</label>
+                  <textarea 
+                    rows={2} 
+                    placeholder="Ai làm gì, deadline khi nào..."
+                    value={newNote.actionItems}
+                    onChange={(e) => setNewNote({ ...newNote, actionItems: e.target.value })}
+                  />
+                </div>
+
+                <div className="modal-actions">
+                  <button type="button" onClick={() => setShowNoteModal(false)} className="btn-secondary">Hủy</button>
+                  <button type="submit" className="btn-primary">Lưu Biên Bản</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {selectedTask && (
+          <div className="modal-backdrop">
+            <div className="modal-card task-detail-modal">
+              <div className="detail-modal-header">
+                <div className="detail-title-group">
+                  <span className="task-code">{selectedTask.taskCode}</span>
+                  <h2>{selectedTask.title}</h2>
+                </div>
+                <div className="detail-header-actions">
+                  <button type="button" onClick={handleDeleteTask} className="btn-delete-task">
+                    <DeleteOutlineOutlinedIcon style={{ fontSize: 16 }} />
+                    <span>Xóa công việc</span>
+                  </button>
+                  <button onClick={() => setSelectedTask(null)} className="btn-close">
+                    <CloseIcon fontSize="small" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="detail-modal-split">
+                <div className="detail-main-pane">
+                  <div className="desc-editor-card">
+                    <label htmlFor="task-detail-desc">Mô tả công việc</label>
+                    <textarea
+                      id="task-detail-desc"
+                      form="task-detail-meta-form"
+                      rows={4}
+                      placeholder="Nhập mô tả chi tiết yêu cầu công việc..."
+                      value={taskEditForm.description}
+                      onChange={(e) => {
+                        setTaskSaveMsg('');
+                        setTaskEditForm({ ...taskEditForm, description: e.target.value });
+                      }}
+                    />
+                  </div>
+
+                  <div className="subtasks-section">
+                    {(() => {
+                      const subList = selectedTask.subTasks || [];
+                      const doneCount = subList.filter(s => s.status === 4).length;
+                      const subPct = subList.length > 0 ? Math.round((doneCount / subList.length) * 100) : 0;
+
+                      return (
+                        <>
+                          <div className="subtasks-header">
+                            <h3>
+                              <CheckCircleOutlineIcon fontSize="small" />
+                              <span>Công Việc Con (Subtasks / WBS) ({doneCount}/{subList.length})</span>
+                            </h3>
+                            <span className="subtask-progress-label">{subPct}% hoàn thành</span>
+                          </div>
+
+                          <div className="subtask-progress-track">
+                            <div className="subtask-progress-fill" style={{ width: `${subPct}%` }} />
+                          </div>
+
+                          {subList.length > 0 && (
+                            <div className="subtasks-list">
+                              {subList.map(sub => (
+                                <div key={sub.id} className={`subtask-item ${sub.status === 4 ? 'subtask-done' : ''}`}>
+                                  <label className="subtask-left">
+                                    <input
+                                      type="checkbox"
+                                      checked={sub.status === 4}
+                                      onChange={() => handleToggleSubtask(sub)}
+                                    />
+                                    <span className="subtask-code">{sub.taskCode}</span>
+                                    <span className="subtask-title">{sub.title}</span>
+                                  </label>
+                                  <button
+                                    type="button"
+                                    className="btn-remove-subtask"
+                                    title="Xóa công việc con"
+                                    onClick={() => handleDeleteSubtask(sub.id)}
+                                  >
+                                    <DeleteOutlineOutlinedIcon style={{ fontSize: 16 }} />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          <form onSubmit={handleAddSubtask} className="subtask-add-form">
+                            <input
+                              type="text"
+                              placeholder="Thêm công việc con (Subtask) mới..."
+                              value={newSubtaskTitle}
+                              onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                            />
+                            <button type="submit" className="btn-secondary">+ Thêm việc con</button>
+                          </form>
+
+                          <div className="ai-subtask-box">
+                            <button
+                              type="button"
+                              className="btn-ai-inline"
+                              onClick={handleSuggestSubtasks}
+                              disabled={suggestionLoading}
+                            >
+                              {suggestionLoading ? 'AI đang phân tích...' : 'Gợi ý việc con bằng AI'}
+                            </button>
+                            {suggestionError && <p className="ai-error-text">{suggestionError}</p>}
+                            {subtaskSuggestions.length > 0 && (
+                              <ul className="ai-suggestion-list">
+                                {subtaskSuggestions.map(s => (
+                                  <li key={s}>
+                                    <span>{s}</span>
+                                    <button type="button" className="btn-secondary" onClick={() => handleAddSuggestedSubtask(s)}>
+                                      Thêm
+                                    </button>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+
+                  <div className="comments-section">
+                    <h3><ChatBubbleOutlineOutlinedIcon fontSize="small" /> Thảo Luận & Ghi Chú ({selectedTask.comments?.length || 0})</h3>
+
+                    <div className="comments-list">
+                      {selectedTask.comments?.map(c => {
+                        const commentMember = project.members?.find(m => m.userId === c.userId);
+                        return (
+                          <div key={c.id} className="comment-item">
+                            <div className="comment-user">
+                              <span className="comment-author-wrap">
+                                <UserAvatar
+                                  name={c.userFullName}
+                                  email={commentMember?.email}
+                                  avatarUrl={commentMember?.avatarUrl}
+                                  size="xs"
+                                />
+                                <strong>{c.userFullName}</strong>
+                              </span>
+                              <span>{new Date(c.createdAt).toLocaleTimeString('vi-VN')} {new Date(c.createdAt).toLocaleDateString('vi-VN')}</span>
+                            </div>
+                            <p className="comment-body">{c.content}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <form onSubmit={handleAddComment} className="comment-form">
+                      <input
+                        type="text"
+                        placeholder="Viết bình luận, phản hồi công việc..."
+                        value={commentText}
+                        onChange={(e) => setCommentText(e.target.value)}
+                      />
+                      <button type="submit" className="btn-primary">Gửi</button>
+                    </form>
+                  </div>
+                </div>
+
+                <aside className="detail-sidebar-pane">
+                  <form id="task-detail-meta-form" onSubmit={handleSaveTaskDetail} className="task-meta-editor">
+                    <div className="sidebar-section-title">Thuộc tính công việc</div>
+
+                    <div className="meta-row-2">
+                      <div className="meta-field">
+                        <label>Trạng thái</label>
+                        <select
+                          value={taskEditForm.status}
+                          onChange={(e) => {
+                            setTaskSaveMsg('');
+                            setTaskEditForm({ ...taskEditForm, status: parseInt(e.target.value) });
+                          }}
+                        >
+                          {COLUMNS.map(c => (
+                            <option key={c.id} value={c.id}>{c.title}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="meta-field">
+                        <label>Độ ưu tiên</label>
+                        <select
+                          value={taskEditForm.priority}
+                          onChange={(e) => {
+                            setTaskSaveMsg('');
+                            setTaskEditForm({ ...taskEditForm, priority: parseInt(e.target.value) });
+                          }}
+                        >
+                          <option value={1}>Thấp</option>
+                          <option value={2}>Trung bình</option>
+                          <option value={3}>Cao</option>
+                          <option value={4}>Khẩn cấp</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="meta-field">
+                      <label>Người thực hiện (Assignee)</label>
+                      <AssigneeSelect
+                        members={project.members || []}
+                        value={taskEditForm.assigneeId}
+                        onChange={(val) => {
+                          setTaskSaveMsg('');
+                          setTaskEditForm({ ...taskEditForm, assigneeId: val });
+                        }}
+                        placeholder="-- Chưa chỉ định --"
+                      />
+                      <button type="button" className="btn-ai-inline" onClick={handleSuggestAssignees}>
+                        Gợi ý người nhận việc
+                      </button>
+                      {assigneeSuggestions.length > 0 && (
+                        <div className="ai-assignee-list">
+                          {assigneeSuggestions.map(s => {
+                            const suggestedMember = project.members?.find(m => m.userId === s.userId);
+                            return (
+                              <button
+                                type="button"
+                                key={s.userId}
+                                className={`ai-assignee-chip ${s.isRecommended ? 'recommended' : ''}`}
+                                onClick={() => {
+                                  setTaskSaveMsg('');
+                                  setTaskEditForm({ ...taskEditForm, assigneeId: s.userId });
+                                }}
+                              >
+                                <span className="ai-assignee-head">
+                                  <UserAvatar
+                                    name={s.fullName}
+                                    email={suggestedMember?.email}
+                                    avatarUrl={suggestedMember?.avatarUrl}
+                                    size="xs"
+                                  />
+                                  <strong>{s.fullName}</strong>
+                                </span>
+                                <span>{s.openTasks} việc mở, {s.openEstimatedHours}h</span>
+                                {s.isRecommended && <em>Ít việc nhất</em>}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="meta-field">
+                      <label>Hạn hoàn thành</label>
+                      <input
+                        type="date"
+                        value={taskEditForm.dueDate}
+                        onChange={(e) => {
+                          setTaskSaveMsg('');
+                          setTaskEditForm({ ...taskEditForm, dueDate: e.target.value });
+                        }}
+                      />
+                    </div>
+
+                    <div className="meta-row-2">
+                      <div className="meta-field">
+                        <label>Giờ ước lượng (h)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.5"
+                          placeholder="0"
+                          value={taskEditForm.estimatedHours}
+                          onChange={(e) => {
+                            setTaskSaveMsg('');
+                            setTaskEditForm({ ...taskEditForm, estimatedHours: e.target.value });
+                          }}
+                        />
+                      </div>
+
+                      <div className="meta-field">
+                        <label>Giờ thực tế (h)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.5"
+                          placeholder="0"
+                          value={taskEditForm.actualHours}
+                          onChange={(e) => {
+                            setTaskSaveMsg('');
+                            setTaskEditForm({ ...taskEditForm, actualHours: e.target.value });
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {(taskEditForm.estimatedHours !== '' || taskEditForm.actualHours !== '') && (() => {
+                      const est = parseFloat(taskEditForm.estimatedHours) || 0;
+                      const act = parseFloat(taskEditForm.actualHours) || 0;
+                      const isOver = est > 0 && act > est;
+                      const pct = est > 0 ? Math.min(Math.round((act / est) * 100), 100) : (act > 0 ? 100 : 0);
+
+                      return (
+                        <div className="time-tracking-bar-box">
+                          <div className="time-bar-header">
+                            <span>Thực tế {act}h / Ước lượng {est}h</span>
+                            <span className={`time-status-tag ${isOver ? 'over-budget' : 'within-budget'}`}>
+                              {isOver ? `Vượt +${(act - est).toFixed(1)}h` : 'Trong định mức'}
+                            </span>
+                          </div>
+                          <div className="time-bar-track">
+                            <div
+                              className={`time-bar-fill ${isOver ? 'over-budget' : 'within-budget'}`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    <div className="meta-editor-footer">
+                      {taskSaveMsg && <span className="save-feedback">{taskSaveMsg}</span>}
+                      <button type="submit" className="btn-primary btn-save-task">
+                        Lưu Cập Nhật Công Việc
+                      </button>
+                    </div>
+                  </form>
+                </aside>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
