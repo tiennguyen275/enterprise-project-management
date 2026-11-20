@@ -175,6 +175,8 @@ export default function GlobalSearchModal({ open, onClose }) {
               onClick={() => {
                 setQuery('');
                 setResults({ projects: [], tasks: [], users: [] });
+                setLoading(false);
+                setActiveIndex(0);
                 inputRef.current?.focus();
               }}
               title="Xóa từ khóa"

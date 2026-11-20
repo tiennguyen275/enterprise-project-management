@@ -18,10 +18,17 @@ import SecurityOutlinedIcon from '@mui/icons-material/SecurityOutlined';
 export default function UsersDirectory() {
   const { user: currentUser } = useAuth();
   const [searchParams] = useSearchParams();
+  const urlQuery = searchParams.get('q') || '';
   const isAdmin = currentUser?.systemRole === 'Admin';
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState(() => searchParams.get('q') || '');
+  const [searchQuery, setSearchQuery] = useState(urlQuery);
+  const [prevUrlQuery, setPrevUrlQuery] = useState(urlQuery);
+
+  if (urlQuery !== prevUrlQuery) {
+    setPrevUrlQuery(urlQuery);
+    setSearchQuery(urlQuery);
+  }
   const [roleFilter, setRoleFilter] = useState('all');
   const [actionBusyId, setActionBusyId] = useState(null);
   const [feedback, setFeedback] = useState({ type: '', message: '' });

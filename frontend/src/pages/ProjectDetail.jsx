@@ -369,23 +369,6 @@ export default function ProjectDetail() {
           if (scheduleRes) {
             setScheduleData(scheduleRes.data);
           }
-          if (requestedTaskId) {
-            const matched = tasksRes.data.find((t) => t.id === requestedTaskId);
-            if (matched) {
-              setSelectedTask(matched);
-              setTaskEditForm({
-                title: matched.title || '',
-                description: matched.description || '',
-                status: matched.status || 1,
-                priority: matched.priority || 2,
-                dueDate: matched.dueDate ? matched.dueDate.substring(0, 10) : '',
-                estimatedHours: matched.estimatedHours != null ? matched.estimatedHours : '',
-                actualHours: matched.actualHours != null ? matched.actualHours : '',
-                assigneeId: matched.assigneeId || '',
-              });
-              setSearchParams({}, { replace: true });
-            }
-          }
         }
       })
       .catch((err) => {
@@ -397,7 +380,7 @@ export default function ProjectDetail() {
     return () => {
       isMounted = false;
     };
-  }, [id, requestedTaskId, setSearchParams]);
+  }, [id]);
 
   const handleCreateTask = async (e) => {
     e.preventDefault();
@@ -602,6 +585,29 @@ export default function ProjectDetail() {
       assigneeId: taskData.assigneeId || ''
     });
   };
+
+  useEffect(() => {
+    if (!requestedTaskId) return undefined;
+    let isMounted = true;
+    api.get(`/tasks/${requestedTaskId}`)
+      .then((res) => {
+        if (!isMounted || !res.data) return;
+        setTaskSaveMsg('');
+        setNewSubtaskTitle('');
+        setSubtaskSuggestions([]);
+        setSuggestionError('');
+        setAssigneeSuggestions([]);
+        setSelectedTask(res.data);
+        syncTaskEditForm(res.data);
+        setSearchParams({}, { replace: true });
+      })
+      .catch((err) => {
+        console.error('Lỗi tải chi tiết công việc từ tìm kiếm:', err);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [requestedTaskId, setSearchParams]);
 
   const handleOpenTaskDetail = async (taskId) => {
     try {

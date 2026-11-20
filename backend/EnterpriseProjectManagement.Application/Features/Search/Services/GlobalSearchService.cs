@@ -45,7 +45,16 @@ public class GlobalSearchService : IGlobalSearchService
 
         var safeLimit = Math.Clamp(limit, 1, 15);
         var currentUser = await _userRepository.GetByIdAsync(userId, cancellationToken);
-        var isAdmin = currentUser is { IsActive: true, SystemRole: SystemRole.Admin };
+        if (currentUser is null || !currentUser.IsActive)
+        {
+            return new GlobalSearchResponseDto(
+                Array.Empty<SearchProjectHitDto>(),
+                Array.Empty<SearchTaskHitDto>(),
+                Array.Empty<SearchUserHitDto>()
+            );
+        }
+
+        var isAdmin = currentUser.SystemRole == SystemRole.Admin;
 
         IReadOnlyList<Project> accessibleProjects;
         if (isAdmin)
