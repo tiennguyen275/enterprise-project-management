@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import FolderSpecialOutlinedIcon from '@mui/icons-material/FolderSpecialOutlined';
 import AssignmentOutlinedIcon from '@mui/icons-material/AssignmentOutlined';
 import LogoutIcon from '@mui/icons-material/Logout';
+import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
 
 export default function Navbar() {
   const { user, logout } = useAuth();
@@ -12,12 +13,21 @@ export default function Navbar() {
   const isProjectsActive = location.pathname === '/' || location.pathname.startsWith('/projects');
   const isMyTasksActive = location.pathname === '/my-tasks';
 
+  const userInitial = user?.fullName
+    ? user.fullName.trim().charAt(0).toUpperCase()
+    : 'U';
+
   return (
     <header className="navbar">
       <div className="nav-left">
         <Link to="/" className="nav-brand">
-          <FolderSpecialOutlinedIcon fontSize="medium" color="primary" />
-          <span>Enterprise Project Manager</span>
+          <div className="brand-logo-icon">
+            <AccountTreeOutlinedIcon fontSize="small" />
+          </div>
+          <div className="brand-text-group">
+            <span className="brand-name">EPMS Enterprise</span>
+            <span className="brand-version-badge">v2026</span>
+          </div>
         </Link>
 
         <nav className="nav-links">
@@ -33,10 +43,16 @@ export default function Navbar() {
       </div>
 
       <div className="nav-user">
-        <span className="user-greeting">
-          Xin chào, <strong>{user?.fullName}</strong>
-        </span>
-        <button onClick={logout} className="btn-logout" title="Đăng xuất">
+        <div className="user-profile-widget">
+          <div className="user-avatar-circle" title={user?.email || ''}>
+            {userInitial}
+          </div>
+          <div className="user-meta">
+            <span className="user-name">{user?.fullName || 'Thành viên'}</span>
+            <span className="user-email">{user?.email || 'Thành viên tổ chức'}</span>
+          </div>
+        </div>
+        <button onClick={logout} className="btn-logout" title="Đăng xuất khỏi hệ thống">
           <LogoutIcon fontSize="small" />
           <span>Thoát</span>
         </button>

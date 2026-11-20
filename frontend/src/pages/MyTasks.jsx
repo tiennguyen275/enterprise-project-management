@@ -143,7 +143,7 @@ export default function MyTasks() {
         </div>
 
         <div className="my-tasks-kpi-grid">
-          <div className="kpi-card">
+          <div className="kpi-card kpi-total">
             <div className="kpi-icon icon-blue">
               <AssignmentOutlinedIcon />
             </div>
@@ -153,7 +153,7 @@ export default function MyTasks() {
             </div>
           </div>
 
-          <div className="kpi-card">
+          <div className="kpi-card kpi-overdue">
             <div className="kpi-icon icon-red">
               <WarningAmberOutlinedIcon />
             </div>
@@ -163,7 +163,7 @@ export default function MyTasks() {
             </div>
           </div>
 
-          <div className="kpi-card">
+          <div className="kpi-card kpi-today">
             <div className="kpi-icon icon-yellow">
               <TodayOutlinedIcon />
             </div>
@@ -173,7 +173,7 @@ export default function MyTasks() {
             </div>
           </div>
 
-          <div className="kpi-card">
+          <div className="kpi-card kpi-completed">
             <div className="kpi-icon icon-green">
               <CheckCircleOutlineOutlinedIcon />
             </div>

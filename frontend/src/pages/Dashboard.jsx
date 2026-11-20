@@ -7,6 +7,8 @@ import CheckCircleOutlineOutlinedIcon from '@mui/icons-material/CheckCircleOutli
 import AddIcon from '@mui/icons-material/Add';
 import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
 import ErrorOutlineOutlinedIcon from '@mui/icons-material/ErrorOutlineOutlined';
+import AssignmentOutlinedIcon from '@mui/icons-material/AssignmentOutlined';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -46,6 +48,11 @@ export default function Dashboard() {
     }
   };
 
+  const totalProjects = projects.length;
+  const totalAllTasks = projects.reduce((acc, p) => acc + (p.totalTasks || 0), 0);
+  const completedAllTasks = projects.reduce((acc, p) => acc + (p.completedTasks || 0), 0);
+  const overallRate = totalAllTasks > 0 ? Math.round((completedAllTasks / totalAllTasks) * 100) : 0;
+
   return (
     <div className="dashboard-layout">
       <Navbar />
@@ -61,6 +68,50 @@ export default function Dashboard() {
             <span>Tạo Dự Án Mới</span>
           </button>
         </div>
+
+        {!loading && projects.length > 0 && (
+          <div className="dashboard-stats-overview">
+            <div className="dash-stat-box box-projects">
+              <div className="stat-icon-wrapper icon-blue">
+                <FolderSpecialOutlinedIcon fontSize="small" />
+              </div>
+              <div className="stat-content">
+                <span className="stat-caption">Dự án hoạt động</span>
+                <strong className="stat-number">{totalProjects}</strong>
+              </div>
+            </div>
+
+            <div className="dash-stat-box box-tasks">
+              <div className="stat-icon-wrapper icon-indigo">
+                <AssignmentOutlinedIcon fontSize="small" />
+              </div>
+              <div className="stat-content">
+                <span className="stat-caption">Tổng số công việc</span>
+                <strong className="stat-number">{totalAllTasks}</strong>
+              </div>
+            </div>
+
+            <div className="dash-stat-box box-completed">
+              <div className="stat-icon-wrapper icon-green">
+                <CheckCircleOutlineOutlinedIcon fontSize="small" />
+              </div>
+              <div className="stat-content">
+                <span className="stat-caption">Công việc hoàn tất</span>
+                <strong className="stat-number">{completedAllTasks}</strong>
+              </div>
+            </div>
+
+            <div className="dash-stat-box box-rate">
+              <div className="stat-icon-wrapper icon-purple">
+                <TrendingUpIcon fontSize="small" />
+              </div>
+              <div className="stat-content">
+                <span className="stat-caption">Tỷ lệ hoàn thành</span>
+                <strong className="stat-number">{overallRate}%</strong>
+              </div>
+            </div>
+          </div>
+        )}
 
         {loading ? (
           <div className="loading-state">Đang tải dữ liệu dự án...</div>
