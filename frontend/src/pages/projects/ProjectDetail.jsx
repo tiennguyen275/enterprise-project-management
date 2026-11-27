@@ -952,6 +952,7 @@ export default function ProjectDetail() {
             onDrop={handleDrop}
             onOpenTaskDetail={handleOpenTaskDetail}
             onUpdateStatus={handleUpdateStatus}
+            onOpenCreateTask={() => setShowTaskModal(true)}
           />
         )}
 
