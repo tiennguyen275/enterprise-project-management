@@ -5,7 +5,7 @@ import { matchesSearch } from '../../utils/textSearch';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlineOutlined';
 import ChatBubbleOutlineOutlinedIcon from '@mui/icons-material/ChatBubbleOutlineOutlined';
-import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
+import SearchIcon from '@mui/icons-material/Search';
 import ViewKanbanOutlinedIcon from '@mui/icons-material/ViewKanbanOutlined';
 import TableRowsOutlinedIcon from '@mui/icons-material/TableRowsOutlined';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
@@ -83,6 +83,7 @@ export default function KanbanTab({
       <div className="kanban-toolbar">
         <div className="toolbar-filters">
           <div className="search-box">
+            <SearchIcon className="search-box-icon" style={{ fontSize: 17 }} />
             <input
               type="text"
               placeholder="Tìm theo mã (PRJ-1) hoặc tên công việc..."
@@ -166,25 +167,40 @@ export default function KanbanTab({
             return (
               <div
                 key={col.id}
-                className={`kanban-column ${isOver ? 'column-drag-over' : ''}`}
+                className={`kanban-column status-col-${col.id} ${isOver ? 'column-drag-over' : ''}`}
                 onDragOver={(e) => onDragOver(e, col.id)}
                 onDragLeave={(e) => onDragLeave(e, col.id)}
                 onDrop={(e) => onDrop(e, col.id)}
               >
-                <div className="column-header" style={{ borderTopColor: col.color }}>
-                  <h3>{col.title}</h3>
-                  <span className="count-badge">{colTasks.length}</span>
+                <div className="column-header">
+                  <div className="column-title-wrap">
+                    <span className="column-status-dot" style={{ backgroundColor: col.color }} />
+                    <h3>{col.title}</h3>
+                    <span className="count-badge">{colTasks.length}</span>
+                  </div>
+                  {onOpenCreateTask && (
+                    <button
+                      type="button"
+                      className="btn-col-quick-add"
+                      title="Thêm công việc mới"
+                      aria-label={`Thêm công việc vào ${col.title}`}
+                      onClick={onOpenCreateTask}
+                    >
+                      <AddIcon style={{ fontSize: 16 }} />
+                    </button>
+                  )}
                 </div>
 
                 <div className="task-list">
                   {colTasks.length === 0 ? (
                     <div className="empty-column-placeholder">
-                      {isOver ? 'Thả công việc vào đây...' : 'Chưa có công việc'}
+                      <span>{isOver ? 'Thả công việc vào đây...' : 'Chưa có công việc'}</span>
                     </div>
                   ) : (
                     colTasks.map((task) => {
                       const totalSub = task.subTasks?.length || 0;
                       const doneSub = task.subTasks?.filter((s) => s.status === 4).length || 0;
+                      const subPct = totalSub > 0 ? Math.round((doneSub / totalSub) * 100) : 0;
                       const commentCount = task.comments?.length || 0;
                       const hasTime = task.estimatedHours != null || task.actualHours != null;
                       const isOverTime = task.estimatedHours != null && task.actualHours != null && task.actualHours > task.estimatedHours;
@@ -192,40 +208,45 @@ export default function KanbanTab({
                       return (
                         <div
                           key={task.id}
-                          className={`kanban-task-card priority-border-${task.priority} ${draggedTaskId === task.id ? 'is-dragging' : ''}`}
+                          className={`kanban-task-card priority-accent-${task.priority} ${draggedTaskId === task.id ? 'is-dragging' : ''}`}
                           draggable
                           onDragStart={(e) => onDragStart(e, task.id)}
                           onClick={() => onOpenTaskDetail(task.id)}
                         >
                           <div className="task-card-top">
                             <span className="task-code">{task.taskCode}</span>
-                            <span className={`priority-badge priority-${task.priority}`}>
+                            <span className={`priority-pill priority-${task.priority}`}>
+                              <span className="priority-dot" />
                               {getPriorityLabel(task.priority)}
                             </span>
                           </div>
 
                           <h4>{task.title}</h4>
 
-                          {task.dueDate && (
-                            <div className="task-meta-due">
-                              <AccessTimeIcon style={{ fontSize: 14 }} />
-                              <span>{new Date(task.dueDate).toLocaleDateString('vi-VN')}</span>
+                          {totalSub > 0 && (
+                            <div className="card-subtask-progress">
+                              <div className="card-sub-meta">
+                                <span className={doneSub === totalSub ? 'is-done' : ''}>
+                                  <CheckCircleOutlineIcon style={{ fontSize: 13 }} />
+                                  {doneSub}/{totalSub} việc con
+                                </span>
+                                <span className="card-sub-pct">{subPct}%</span>
+                              </div>
+                              <div className="card-sub-track">
+                                <div
+                                  className={`card-sub-fill ${doneSub === totalSub ? 'is-done' : ''}`}
+                                  style={{ width: `${subPct}%` }}
+                                />
+                              </div>
                             </div>
                           )}
 
-                          {task.assigneeName && (
-                            <div className="task-meta-due" style={{ color: '#2563eb', fontWeight: 600 }}>
-                              <UserAvatar name={task.assigneeName} avatarUrl={task.assigneeAvatarUrl} size="xs" />
-                              <span>{task.assigneeName}</span>
-                            </div>
-                          )}
-
-                          {(totalSub > 0 || hasTime || commentCount > 0) && (
+                          {(task.dueDate || hasTime || commentCount > 0) && (
                             <div className="task-card-badges">
-                              {totalSub > 0 && (
-                                <span className={`meta-pill ${doneSub === totalSub ? 'subtask-done' : ''}`}>
-                                  <CheckCircleOutlineIcon style={{ fontSize: 12 }} />
-                                  <span>{doneSub}/{totalSub} việc con</span>
+                              {task.dueDate && (
+                                <span className="meta-pill">
+                                  <CalendarTodayOutlinedIcon style={{ fontSize: 12 }} />
+                                  <span>{new Date(task.dueDate).toLocaleDateString('vi-VN')}</span>
                                 </span>
                               )}
                               {hasTime && (
@@ -243,13 +264,24 @@ export default function KanbanTab({
                             </div>
                           )}
 
-                          <div className="task-card-actions">
-                            <span className="drag-hint"><DragIndicatorIcon style={{ fontSize: 14 }} /> Kéo thả hoặc chọn</span>
+                          <div className="task-card-footer">
+                            <div className="card-assignee">
+                              {task.assigneeName ? (
+                                <>
+                                  <UserAvatar name={task.assigneeName} avatarUrl={task.assigneeAvatarUrl} size="xs" />
+                                  <span title={task.assigneeName}>{task.assigneeName}</span>
+                                </>
+                              ) : (
+                                <span className="card-unassigned">Chưa chỉ định</span>
+                              )}
+                            </div>
+
                             <select
                               value={task.status}
+                              aria-label={`Đổi trạng thái ${task.title}`}
                               onClick={(e) => e.stopPropagation()}
                               onChange={(e) => onUpdateStatus(task.id, parseInt(e.target.value, 10))}
-                              className="status-dropdown"
+                              className="status-quick-select"
                             >
                               {columns.map((c) => (
                                 <option key={c.id} value={c.id}>{c.title}</option>
