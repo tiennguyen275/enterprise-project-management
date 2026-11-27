@@ -108,6 +108,8 @@ export default function ProjectDetail() {
   const [kanbanPriority, setKanbanPriority] = useState('ALL');
 
   const [selectedTask, setSelectedTask] = useState(null);
+  const selectedTaskRef = useRef(null);
+  const patchQueueRef = useRef(Promise.resolve());
   const [taskEditForm, setTaskEditForm] = useState({
     title: '',
     description: '',
@@ -629,41 +631,58 @@ export default function ProjectDetail() {
     }
   };
 
-  const handlePatchTask = async (patch) => {
-    if (!selectedTask) return null;
-    const payload = {
-      title: patch.title !== undefined ? patch.title : selectedTask.title,
-      description: patch.description !== undefined ? patch.description : (selectedTask.description || ''),
-      status: patch.status !== undefined ? parseInt(patch.status, 10) : selectedTask.status,
-      priority: patch.priority !== undefined ? parseInt(patch.priority, 10) : selectedTask.priority,
-      dueDate: patch.dueDate !== undefined
-        ? (patch.dueDate ? new Date(patch.dueDate).toISOString() : null)
-        : (selectedTask.dueDate || null),
-      estimatedHours: patch.estimatedHours !== undefined
-        ? (patch.estimatedHours !== '' && patch.estimatedHours !== null ? parseFloat(patch.estimatedHours) : null)
-        : (selectedTask.estimatedHours ?? null),
-      actualHours: patch.actualHours !== undefined
-        ? (patch.actualHours !== '' && patch.actualHours !== null ? parseFloat(patch.actualHours) : null)
-        : (selectedTask.actualHours ?? null),
-      assigneeId: patch.assigneeId !== undefined
-        ? (patch.assigneeId || null)
-        : (selectedTask.assigneeId || null),
+  useEffect(() => {
+    selectedTaskRef.current = selectedTask;
+  }, [selectedTask]);
+
+  const handlePatchTask = (patch) => {
+    const targetTaskId = selectedTaskRef.current?.id;
+    if (!targetTaskId) return Promise.resolve(null);
+
+    const runPatch = async () => {
+      const base = selectedTaskRef.current;
+      if (!base || base.id !== targetTaskId) return null;
+      const payload = {
+        title: patch.title !== undefined ? patch.title : base.title,
+        description: patch.description !== undefined ? patch.description : (base.description || ''),
+        status: patch.status !== undefined ? parseInt(patch.status, 10) : base.status,
+        priority: patch.priority !== undefined ? parseInt(patch.priority, 10) : base.priority,
+        dueDate: patch.dueDate !== undefined
+          ? (patch.dueDate ? new Date(patch.dueDate).toISOString() : null)
+          : (base.dueDate || null),
+        estimatedHours: patch.estimatedHours !== undefined
+          ? (patch.estimatedHours !== '' && patch.estimatedHours !== null ? parseFloat(patch.estimatedHours) : null)
+          : (base.estimatedHours ?? null),
+        actualHours: patch.actualHours !== undefined
+          ? (patch.actualHours !== '' && patch.actualHours !== null ? parseFloat(patch.actualHours) : null)
+          : (base.actualHours ?? null),
+        assigneeId: patch.assigneeId !== undefined
+          ? (patch.assigneeId || null)
+          : (base.assigneeId || null),
+      };
+      const res = await api.put(`/tasks/${targetTaskId}`, payload);
+      if (selectedTaskRef.current?.id === targetTaskId) {
+        selectedTaskRef.current = res.data;
+        setSelectedTask(res.data);
+        setTaskEditForm((prev) => ({
+          ...prev,
+          ...(patch.title !== undefined ? { title: res.data.title || '' } : {}),
+          ...(patch.description !== undefined ? { description: res.data.description || '' } : {}),
+          ...(patch.status !== undefined ? { status: res.data.status || 1 } : {}),
+          ...(patch.priority !== undefined ? { priority: res.data.priority || 2 } : {}),
+          ...(patch.dueDate !== undefined ? { dueDate: res.data.dueDate ? res.data.dueDate.substring(0, 10) : '' } : {}),
+          ...(patch.estimatedHours !== undefined ? { estimatedHours: res.data.estimatedHours ?? '' } : {}),
+          ...(patch.actualHours !== undefined ? { actualHours: res.data.actualHours ?? '' } : {}),
+          ...(patch.assigneeId !== undefined ? { assigneeId: res.data.assigneeId || '' } : {}),
+        }));
+      }
+      fetchProjectData();
+      return res.data;
     };
-    const res = await api.put(`/tasks/${selectedTask.id}`, payload);
-    setSelectedTask(res.data);
-    setTaskEditForm((prev) => ({
-      ...prev,
-      title: res.data.title || '',
-      description: patch.description !== undefined ? (res.data.description || '') : prev.description,
-      status: res.data.status || 1,
-      priority: res.data.priority || 2,
-      dueDate: res.data.dueDate ? res.data.dueDate.substring(0, 10) : '',
-      estimatedHours: res.data.estimatedHours ?? '',
-      actualHours: res.data.actualHours ?? '',
-      assigneeId: res.data.assigneeId || '',
-    }));
-    fetchProjectData();
-    return res.data;
+
+    const queued = patchQueueRef.current.then(runPatch, runPatch);
+    patchQueueRef.current = queued.catch(() => {});
+    return queued;
   };
 
   const handleDeleteTask = async () => {
@@ -1443,7 +1462,10 @@ export default function ProjectDetail() {
           subtaskSuggestions={subtaskSuggestions}
           commentText={commentText}
           setCommentText={setCommentText}
-          onClose={() => setSelectedTask(null)}
+          onClose={() => {
+            selectedTaskRef.current = null;
+            setSelectedTask(null);
+          }}
           onDeleteTask={handleDeleteTask}
           onPatchTask={handlePatchTask}
           onSuggestAssignees={handleSuggestAssignees}

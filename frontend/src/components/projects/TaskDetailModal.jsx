@@ -83,6 +83,7 @@ export default function TaskDetailModal({
 }) {
   const fileInputRef = useRef(null);
   const toastTimerRef = useRef(null);
+  const isMountedRef = useRef(true);
   const [attachments, setAttachments] = useState([]);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [savingDesc, setSavingDesc] = useState(false);
@@ -97,7 +98,9 @@ export default function TaskDetailModal({
   const commentsCount = selectedTask?.comments?.length || 0;
 
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
+      isMountedRef.current = false;
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     };
   }, []);
@@ -148,11 +151,12 @@ export default function TaskDetailModal({
   if (!selectedTask) return null;
 
   const showToast = (type, text, durationMs = 2600) => {
+    if (!isMountedRef.current) return;
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setApiToast({ type, text });
     if (durationMs > 0) {
       toastTimerRef.current = setTimeout(() => {
-        setApiToast(null);
+        if (isMountedRef.current) setApiToast(null);
       }, durationMs);
     }
   };
@@ -160,10 +164,11 @@ export default function TaskDetailModal({
   const runRealtimePatch = async (patch, successText, rollbackFn) => {
     showToast('loading', 'Đang lưu thay đổi...', 0);
     try {
-      await onPatchTask(patch);
-      setHistoryRefreshTick((t) => t + 1);
+      const updated = await onPatchTask(patch);
+      if (!isMountedRef.current || !updated) return;
       showToast('success', successText, 2500);
     } catch (err) {
+      if (!isMountedRef.current) return;
       if (rollbackFn) rollbackFn();
       const msg = err.response?.data?.message || err.message || 'Không thể lưu thay đổi.';
       showToast('error', `Lỗi lưu: ${msg}`, 4000);
@@ -203,10 +208,21 @@ export default function TaskDetailModal({
     );
   };
 
+  const isCompleteValidDate = (dateStr) => {
+    if (!dateStr) return true;
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+    if (!match) return false;
+    const year = parseInt(match[1], 10);
+    return year >= 1900 && year <= 2100;
+  };
+
   const handleDueDateChange = (e) => {
     const nextDueDate = e.target.value;
     const prevDueDate = taskEditForm.dueDate;
     setTaskEditForm((prev) => ({ ...prev, dueDate: nextDueDate }));
+    if (!isCompleteValidDate(nextDueDate)) return;
+    const savedDueDate = selectedTask.dueDate ? selectedTask.dueDate.substring(0, 10) : '';
+    if (nextDueDate === savedDueDate) return;
     runRealtimePatch(
       { dueDate: nextDueDate },
       'Đã cập nhật hạn hoàn thành',
@@ -242,7 +258,7 @@ export default function TaskDetailModal({
         'Đã lưu mô tả công việc',
       );
     } finally {
-      setSavingDesc(false);
+      if (isMountedRef.current) setSavingDesc(false);
     }
   };
 
@@ -258,13 +274,15 @@ export default function TaskDetailModal({
       const res = await api.post(`/tasks/${selectedTask.id}/attachments`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
+      if (!isMountedRef.current) return;
       setAttachments((prev) => [res.data, ...prev]);
       setHistoryRefreshTick((t) => t + 1);
       showToast('success', `Đã đính kèm tệp "${res.data.fileName}"`, 2600);
     } catch (err) {
+      if (!isMountedRef.current) return;
       showToast('error', err.response?.data?.message || 'Không thể tải tệp đính kèm lên.', 4000);
     } finally {
-      setUploadingFile(false);
+      if (isMountedRef.current) setUploadingFile(false);
     }
   };
 
@@ -290,17 +308,18 @@ export default function TaskDetailModal({
     showToast('loading', 'Đang xóa tệp đính kèm...', 0);
     try {
       await api.delete(`/tasks/${selectedTask.id}/attachments/${attId}`);
+      if (!isMountedRef.current) return;
       setAttachments((prev) => prev.filter((a) => a.id !== attId));
       setHistoryRefreshTick((t) => t + 1);
       showToast('success', 'Đã xóa tệp đính kèm', 2500);
     } catch (err) {
+      if (!isMountedRef.current) return;
       showToast('error', err.response?.data?.message || 'Không thể xóa tệp đính kèm.', 4000);
     }
   };
 
   const handleSubmitComment = async (e) => {
     await onAddComment(e);
-    setHistoryRefreshTick((t) => t + 1);
   };
 
   const subPct = subList.length > 0 ? Math.round((doneCount / subList.length) * 100) : 0;
