@@ -251,7 +251,7 @@ public class TasksController : ControllerBase
     }
 
     [HttpPost("{id:guid}/attachments")]
-    [RequestSizeLimit(TaskAttachmentService.MaxFileSizeBytes)]
+    [RequestSizeLimit(TaskAttachmentService.MaxFileSizeBytes + 1024 * 1024)]
     public async Task<IActionResult> UploadAttachment(Guid id, [FromForm] IFormFile? file, CancellationToken cancellationToken)
     {
         if (file == null || file.Length == 0)
@@ -277,20 +277,19 @@ public class TasksController : ControllerBase
             var storedName = $"{Guid.NewGuid():N}{ext.ToLowerInvariant()}";
             var fullPath = Path.Combine(GetAttachmentsRootPath(), storedName);
 
-            await using (var stream = new FileStream(fullPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
-            {
-                await file.CopyToAsync(stream, cancellationToken);
-            }
-
             TaskAttachmentDto saved;
             try
             {
+                await using (var stream = new FileStream(fullPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                {
+                    await file.CopyToAsync(stream, cancellationToken);
+                }
+
                 saved = await _attachmentService.SaveAttachmentRecordAsync(
                     id,
                     userId,
                     file.FileName,
                     storedName,
-                    TaskAttachmentService.ResolveSafeContentType(file.FileName),
                     file.Length,
                     cancellationToken);
             }

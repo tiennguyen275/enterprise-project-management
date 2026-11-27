@@ -13,7 +13,6 @@ public interface ITaskAttachmentService
         Guid uploaderUserId,
         string fileName,
         string storedFileName,
-        string contentType,
         long fileSizeBytes,
         CancellationToken cancellationToken = default);
     Task<TaskAttachmentFileDto?> GetAttachmentFileAsync(Guid taskId, Guid attachmentId, Guid requesterUserId, CancellationToken cancellationToken = default);
@@ -102,7 +101,6 @@ public class TaskAttachmentService : ITaskAttachmentService
         Guid uploaderUserId,
         string fileName,
         string storedFileName,
-        string contentType,
         long fileSizeBytes,
         CancellationToken cancellationToken = default)
     {
