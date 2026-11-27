@@ -266,7 +266,7 @@
       grid-template-columns: minmax(280px, 1fr) 168px 112px 158px 128px 124px;
       align-items: center;
       gap: 0.75rem;
-      min-width: 980px;
+      min-width: 1080px;
       padding: 0 1.25rem;
     }
 
@@ -297,7 +297,7 @@
 
       .list-group-header {
         width: 100%;
-        min-width: 980px;
+        min-width: 1080px;
         display: flex;
         align-items: center;
         gap: 0.55rem;
@@ -316,7 +316,7 @@
         .group-chevron {
           display: inline-flex;
           align-items: center;
-          color: #64748b;
+          color: #475569;
         }
 
         .group-status-pill {
@@ -329,26 +329,26 @@
           color: #ffffff;
 
           &.status-val-1 {
-            background: #64748b;
+            background: #475569;
           }
 
           &.status-val-2 {
-            background: #2563eb;
+            background: #1d4ed8;
           }
 
           &.status-val-3 {
-            background: #d97706;
+            background: #b45309;
           }
 
           &.status-val-4 {
-            background: #16a34a;
+            background: #15803d;
           }
         }
 
         .group-task-count {
           font-size: 0.78rem;
-          font-weight: 500;
-          color: #94a3b8;
+          font-weight: 600;
+          color: #64748b;
           font-variant-numeric: tabular-nums;
         }
       }
@@ -402,6 +402,11 @@
           }
 
           .lv-task-title {
+            padding: 0;
+            border: none;
+            background: transparent;
+            text-align: left;
+            cursor: pointer;
             font-size: 0.85rem;
             font-weight: 600;
             color: #0f172a;
@@ -409,12 +414,18 @@
             text-overflow: ellipsis;
             white-space: nowrap;
             transition: color 0.12s ease;
+
+            &:focus-visible {
+              outline: 2px solid $primary;
+              outline-offset: 2px;
+              border-radius: 4px;
+            }
           }
 
           .lv-inline-meta {
             font-size: 0.7rem;
             font-weight: 600;
-            color: #64748b;
+            color: #475569;
             background: #f1f5f9;
             padding: 0.08rem 0.4rem;
             border-radius: 999px;
@@ -433,7 +444,7 @@
             gap: 0.2rem;
             font-size: 0.73rem;
             font-weight: 600;
-            color: #94a3b8;
+            color: #64748b;
             flex-shrink: 0;
             font-variant-numeric: tabular-nums;
           }
@@ -467,19 +478,19 @@
             }
 
             &.status-val-1 {
-              background: #64748b;
+              background: #475569;
             }
 
             &.status-val-2 {
-              background: #2563eb;
+              background: #1d4ed8;
             }
 
             &.status-val-3 {
-              background: #d97706;
+              background: #b45309;
             }
 
             &.status-val-4 {
-              background: #16a34a;
+              background: #15803d;
             }
           }
         }
@@ -615,14 +626,14 @@
 
       .list-quick-add-row {
         width: 100%;
-        min-width: 980px;
+        min-width: 1080px;
         display: flex;
         align-items: center;
         gap: 0.35rem;
         padding: 0.5rem 1.25rem 0.5rem 2.4rem;
         background: transparent;
         border: none;
-        color: #94a3b8;
+        color: #64748b;
         font-size: 0.78rem;
         font-weight: 600;
         cursor: pointer;

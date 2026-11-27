@@ -138,6 +138,7 @@ export default function KanbanTab({
             <button
               type="button"
               className={`view-mode-btn ${viewMode === 'kanban' ? 'active' : ''}`}
+              aria-pressed={viewMode === 'kanban'}
               onClick={() => setViewMode('kanban')}
             >
               <ViewKanbanOutlinedIcon style={{ fontSize: 16 }} />
@@ -146,6 +147,7 @@ export default function KanbanTab({
             <button
               type="button"
               className={`view-mode-btn ${viewMode === 'grid' ? 'active' : ''}`}
+              aria-pressed={viewMode === 'grid'}
               onClick={() => setViewMode('grid')}
             >
               <TableRowsOutlinedIcon style={{ fontSize: 16 }} />
@@ -284,6 +286,7 @@ export default function KanbanTab({
                   <button
                     type="button"
                     className="list-group-header"
+                    aria-expanded={!isCollapsed}
                     onClick={() => toggleGroup(col.id)}
                   >
                     <span className="group-chevron">
@@ -319,7 +322,17 @@ export default function KanbanTab({
                                 style={{ fontSize: 17 }}
                               />
                               <span className="lv-task-code">{task.taskCode}</span>
-                              <span className="lv-task-title" title={task.title}>{task.title}</span>
+                              <button
+                                type="button"
+                                className="lv-task-title"
+                                title={task.title}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onOpenTaskDetail(task.id);
+                                }}
+                              >
+                                {task.title}
+                              </button>
                               {totalSub > 0 && (
                                 <span className={`lv-inline-meta ${doneSub === totalSub ? 'is-done' : ''}`}>
                                   {doneSub}/{totalSub}
@@ -336,6 +349,7 @@ export default function KanbanTab({
                             <div className="lv-col-status" onClick={(e) => e.stopPropagation()}>
                               <select
                                 className={`lv-status-block status-val-${task.status}`}
+                                aria-label={`Trạng thái công việc ${task.title}`}
                                 value={task.status}
                                 onChange={(e) => onUpdateStatus(task.id, parseInt(e.target.value, 10))}
                               >
