@@ -14,7 +14,7 @@ public interface IAiAssistantService
     Task<ProjectInsightResponseDto> GetProjectInsightAsync(Guid projectId, CancellationToken cancellationToken = default);
     Task<SubtaskSuggestionResponseDto> SuggestSubtasksAsync(Guid taskId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<AssigneeSuggestionDto>> SuggestAssigneesAsync(Guid taskId, CancellationToken cancellationToken = default);
-    Task<TaskDescriptionSuggestionResponseDto> SuggestTaskDescriptionAsync(Guid taskId, string? currentDescription = null, CancellationToken cancellationToken = default);
+    Task<TaskDescriptionSuggestionResponseDto> SuggestTaskDescriptionAsync(Guid taskId, Guid requesterUserId, string? currentDescription = null, CancellationToken cancellationToken = default);
 }
 
 public class AiAssistantService : IAiAssistantService
@@ -182,6 +182,7 @@ public class AiAssistantService : IAiAssistantService
 
     public async Task<TaskDescriptionSuggestionResponseDto> SuggestTaskDescriptionAsync(
         Guid taskId,
+        Guid requesterUserId,
         string? currentDescription = null,
         CancellationToken cancellationToken = default)
     {
@@ -189,6 +190,23 @@ public class AiAssistantService : IAiAssistantService
         if (task == null)
         {
             throw new KeyNotFoundException("Không tìm thấy công việc.");
+        }
+
+        var requester = await _userRepository.GetByIdAsync(requesterUserId, cancellationToken);
+        if (requester == null || !requester.IsActive)
+        {
+            throw new UnauthorizedAccessException("Tài khoản không hợp lệ hoặc đã bị khóa.");
+        }
+
+        if (requester.SystemRole != SystemRole.Admin)
+        {
+            var membership = await _memberRepository.FindAsync(
+                m => m.ProjectId == task.ProjectId && m.UserId == requesterUserId,
+                cancellationToken);
+            if (!membership.Any())
+            {
+                throw new UnauthorizedAccessException("Bạn không có quyền truy cập công việc này.");
+            }
         }
 
         var project = await _projectRepository.GetByIdAsync(task.ProjectId, cancellationToken);
@@ -219,12 +237,13 @@ public class AiAssistantService : IAiAssistantService
         try
         {
             var generated = await _aiTextGenerator.GenerateAsync(SystemInstruction, builder.ToString(), false, cancellationToken);
-            if (!string.IsNullOrWhiteSpace(generated))
+            if (!string.IsNullOrWhiteSpace(generated)
+                && !generated.TrimStart().StartsWith("(Chế độ AI Heuristic Nội bộ)", StringComparison.Ordinal))
             {
                 return new TaskDescriptionSuggestionResponseDto(generated.Trim());
             }
         }
-        catch (AiUnavailableException)
+        catch (Exception ex) when (ex is AiUnavailableException or JsonException or HttpRequestException)
         {
         }
 

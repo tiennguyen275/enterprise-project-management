@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using EnterpriseProjectManagement.Application.Common.Exceptions;
 using EnterpriseProjectManagement.Application.Features.AiAssistant.DTOs;
 using EnterpriseProjectManagement.Application.Features.AiAssistant.Services;
@@ -74,13 +75,24 @@ public class AiAssistantController : ControllerBase
         [FromBody] TaskDescriptionSuggestionRequestDto? request,
         CancellationToken cancellationToken)
     {
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
+        if (!Guid.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(new { message = "Phiên đăng nhập không hợp lệ." });
+        }
+
         try
         {
             var result = await _aiAssistantService.SuggestTaskDescriptionAsync(
                 taskId,
+                userId,
                 request?.CurrentDescription,
                 cancellationToken);
             return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
         }
         catch (KeyNotFoundException ex)
         {
