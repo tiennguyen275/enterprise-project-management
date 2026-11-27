@@ -118,7 +118,6 @@ export default function ProjectDetail() {
     actualHours: '',
     assigneeId: ''
   });
-  const [taskSaveMsg, setTaskSaveMsg] = useState('');
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [commentText, setCommentText] = useState('');
   const [aiInsight, setAiInsight] = useState(null);
@@ -600,7 +599,6 @@ export default function ProjectDetail() {
     api.get(`/tasks/${requestedTaskId}`)
       .then((res) => {
         if (!isMounted || !res.data) return;
-        setTaskSaveMsg('');
         setNewSubtaskTitle('');
         setSubtaskSuggestions([]);
         setSuggestionError('');
@@ -619,7 +617,6 @@ export default function ProjectDetail() {
 
   const handleOpenTaskDetail = async (taskId) => {
     try {
-      setTaskSaveMsg('');
       setNewSubtaskTitle('');
       setSubtaskSuggestions([]);
       setSuggestionError('');
@@ -632,28 +629,41 @@ export default function ProjectDetail() {
     }
   };
 
-  const handleSaveTaskDetail = async (e) => {
-    e.preventDefault();
-    if (!selectedTask) return;
-    try {
-      setTaskSaveMsg('');
-      const res = await api.put(`/tasks/${selectedTask.id}`, {
-        title: taskEditForm.title,
-        description: taskEditForm.description,
-        status: parseInt(taskEditForm.status),
-        priority: parseInt(taskEditForm.priority),
-        dueDate: taskEditForm.dueDate ? new Date(taskEditForm.dueDate).toISOString() : null,
-        estimatedHours: taskEditForm.estimatedHours !== '' ? parseFloat(taskEditForm.estimatedHours) : null,
-        actualHours: taskEditForm.actualHours !== '' ? parseFloat(taskEditForm.actualHours) : null,
-        assigneeId: taskEditForm.assigneeId || null
-      });
-      setSelectedTask(res.data);
-      syncTaskEditForm(res.data);
-      setTaskSaveMsg('Đã lưu cập nhật!');
-      fetchProjectData();
-    } catch (err) {
-      alert('Không thể cập nhật công việc: ' + (err.response?.data?.message || err.message));
-    }
+  const handlePatchTask = async (patch) => {
+    if (!selectedTask) return null;
+    const payload = {
+      title: patch.title !== undefined ? patch.title : selectedTask.title,
+      description: patch.description !== undefined ? patch.description : (selectedTask.description || ''),
+      status: patch.status !== undefined ? parseInt(patch.status, 10) : selectedTask.status,
+      priority: patch.priority !== undefined ? parseInt(patch.priority, 10) : selectedTask.priority,
+      dueDate: patch.dueDate !== undefined
+        ? (patch.dueDate ? new Date(patch.dueDate).toISOString() : null)
+        : (selectedTask.dueDate || null),
+      estimatedHours: patch.estimatedHours !== undefined
+        ? (patch.estimatedHours !== '' && patch.estimatedHours !== null ? parseFloat(patch.estimatedHours) : null)
+        : (selectedTask.estimatedHours ?? null),
+      actualHours: patch.actualHours !== undefined
+        ? (patch.actualHours !== '' && patch.actualHours !== null ? parseFloat(patch.actualHours) : null)
+        : (selectedTask.actualHours ?? null),
+      assigneeId: patch.assigneeId !== undefined
+        ? (patch.assigneeId || null)
+        : (selectedTask.assigneeId || null),
+    };
+    const res = await api.put(`/tasks/${selectedTask.id}`, payload);
+    setSelectedTask(res.data);
+    setTaskEditForm((prev) => ({
+      ...prev,
+      title: res.data.title || '',
+      description: patch.description !== undefined ? (res.data.description || '') : prev.description,
+      status: res.data.status || 1,
+      priority: res.data.priority || 2,
+      dueDate: res.data.dueDate ? res.data.dueDate.substring(0, 10) : '',
+      estimatedHours: res.data.estimatedHours ?? '',
+      actualHours: res.data.actualHours ?? '',
+      assigneeId: res.data.assigneeId || '',
+    }));
+    fetchProjectData();
+    return res.data;
   };
 
   const handleDeleteTask = async () => {
@@ -1425,8 +1435,6 @@ export default function ProjectDetail() {
           columns={COLUMNS}
           taskEditForm={taskEditForm}
           setTaskEditForm={setTaskEditForm}
-          taskSaveMsg={taskSaveMsg}
-          setTaskSaveMsg={setTaskSaveMsg}
           assigneeSuggestions={assigneeSuggestions}
           newSubtaskTitle={newSubtaskTitle}
           setNewSubtaskTitle={setNewSubtaskTitle}
@@ -1437,7 +1445,7 @@ export default function ProjectDetail() {
           setCommentText={setCommentText}
           onClose={() => setSelectedTask(null)}
           onDeleteTask={handleDeleteTask}
-          onSaveTaskDetail={handleSaveTaskDetail}
+          onPatchTask={handlePatchTask}
           onSuggestAssignees={handleSuggestAssignees}
           onToggleSubtask={handleToggleSubtask}
           onDeleteSubtask={handleDeleteSubtask}

@@ -5,6 +5,7 @@ import AssigneeSelect from '../common/AssigneeSelect';
 import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined';
 import CloseIcon from '@mui/icons-material/Close';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlineOutlined';
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutlineOutlined';
 import AttachFileOutlinedIcon from '@mui/icons-material/AttachFileOutlined';
 import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined';
 import HistoryIcon from '@mui/icons-material/History';
@@ -49,14 +50,18 @@ function getActionMeta(action) {
   }
 }
 
+function normalizeHours(val) {
+  if (val === '' || val === null || val === undefined) return null;
+  const parsed = parseFloat(val);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
 export default function TaskDetailModal({
   selectedTask,
   project,
   columns,
   taskEditForm,
   setTaskEditForm,
-  taskSaveMsg,
-  setTaskSaveMsg,
   assigneeSuggestions,
   newSubtaskTitle,
   setNewSubtaskTitle,
@@ -67,7 +72,7 @@ export default function TaskDetailModal({
   setCommentText,
   onClose,
   onDeleteTask,
-  onSaveTaskDetail,
+  onPatchTask,
   onSuggestAssignees,
   onToggleSubtask,
   onDeleteSubtask,
@@ -77,13 +82,14 @@ export default function TaskDetailModal({
   onAddComment,
 }) {
   const fileInputRef = useRef(null);
+  const toastTimerRef = useRef(null);
   const [attachments, setAttachments] = useState([]);
   const [uploadingFile, setUploadingFile] = useState(false);
-  const [attachmentError, setAttachmentError] = useState('');
+  const [savingDesc, setSavingDesc] = useState(false);
   const [rightTab, setRightTab] = useState('comments');
   const [taskActivities, setTaskActivities] = useState([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
   const [historyRefreshTick, setHistoryRefreshTick] = useState(0);
+  const [apiToast, setApiToast] = useState(null);
 
   const taskId = selectedTask?.id;
   const subList = selectedTask?.subTasks || [];
@@ -91,14 +97,17 @@ export default function TaskDetailModal({
   const commentsCount = selectedTask?.comments?.length || 0;
 
   useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!taskId) return undefined;
     let isMounted = true;
     api.get(`/tasks/${taskId}/attachments`)
       .then((res) => {
-        if (isMounted) {
-          setAttachments(res.data || []);
-          setAttachmentError('');
-        }
+        if (isMounted) setAttachments(res.data || []);
       })
       .catch(() => {
         if (isMounted) setAttachments([]);
@@ -113,15 +122,10 @@ export default function TaskDetailModal({
     let isMounted = true;
     api.get(`/tasks/${taskId}/activities?limit=60`)
       .then((res) => {
-        if (isMounted) {
-          setTaskActivities(res.data || []);
-        }
+        if (isMounted) setTaskActivities(res.data || []);
       })
       .catch(() => {
         if (isMounted) setTaskActivities([]);
-      })
-      .finally(() => {
-        if (isMounted) setHistoryLoading(false);
       });
     return () => {
       isMounted = false;
@@ -143,14 +147,111 @@ export default function TaskDetailModal({
 
   if (!selectedTask) return null;
 
-  const subPct = subList.length > 0 ? Math.round((doneCount / subList.length) * 100) : 0;
+  const showToast = (type, text, durationMs = 2600) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setApiToast({ type, text });
+    if (durationMs > 0) {
+      toastTimerRef.current = setTimeout(() => {
+        setApiToast(null);
+      }, durationMs);
+    }
+  };
+
+  const runRealtimePatch = async (patch, successText, rollbackFn) => {
+    showToast('loading', 'Đang lưu thay đổi...', 0);
+    try {
+      await onPatchTask(patch);
+      setHistoryRefreshTick((t) => t + 1);
+      showToast('success', successText, 2500);
+    } catch (err) {
+      if (rollbackFn) rollbackFn();
+      const msg = err.response?.data?.message || err.message || 'Không thể lưu thay đổi.';
+      showToast('error', `Lỗi lưu: ${msg}`, 4000);
+    }
+  };
+
+  const handleStatusChange = (e) => {
+    const nextStatus = parseInt(e.target.value, 10);
+    const prevStatus = taskEditForm.status;
+    setTaskEditForm((prev) => ({ ...prev, status: nextStatus }));
+    runRealtimePatch(
+      { status: nextStatus },
+      'Đã cập nhật trạng thái công việc',
+      () => setTaskEditForm((prev) => ({ ...prev, status: prevStatus })),
+    );
+  };
+
+  const handlePriorityChange = (e) => {
+    const nextPriority = parseInt(e.target.value, 10);
+    const prevPriority = taskEditForm.priority;
+    setTaskEditForm((prev) => ({ ...prev, priority: nextPriority }));
+    runRealtimePatch(
+      { priority: nextPriority },
+      'Đã cập nhật độ ưu tiên',
+      () => setTaskEditForm((prev) => ({ ...prev, priority: prevPriority })),
+    );
+  };
+
+  const handleAssigneeChange = (nextAssigneeId) => {
+    if ((nextAssigneeId || '') === (selectedTask.assigneeId || '')) return;
+    const prevAssigneeId = taskEditForm.assigneeId;
+    setTaskEditForm((prev) => ({ ...prev, assigneeId: nextAssigneeId }));
+    runRealtimePatch(
+      { assigneeId: nextAssigneeId },
+      'Đã cập nhật người thực hiện',
+      () => setTaskEditForm((prev) => ({ ...prev, assigneeId: prevAssigneeId })),
+    );
+  };
+
+  const handleDueDateChange = (e) => {
+    const nextDueDate = e.target.value;
+    const prevDueDate = taskEditForm.dueDate;
+    setTaskEditForm((prev) => ({ ...prev, dueDate: nextDueDate }));
+    runRealtimePatch(
+      { dueDate: nextDueDate },
+      'Đã cập nhật hạn hoàn thành',
+      () => setTaskEditForm((prev) => ({ ...prev, dueDate: prevDueDate })),
+    );
+  };
+
+  const handleHoursBlur = (field, label) => {
+    const currentVal = normalizeHours(taskEditForm[field]);
+    const savedVal = normalizeHours(selectedTask[field]);
+    if (currentVal === savedVal) return;
+    const fallback = selectedTask[field] ?? '';
+    runRealtimePatch(
+      { [field]: taskEditForm[field] },
+      `Đã cập nhật ${label}`,
+      () => setTaskEditForm((prev) => ({ ...prev, [field]: fallback })),
+    );
+  };
+
+  const handleHoursKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.currentTarget.blur();
+    }
+  };
+
+  const handleSaveDescription = async (e) => {
+    e.preventDefault();
+    setSavingDesc(true);
+    try {
+      await runRealtimePatch(
+        { description: taskEditForm.description },
+        'Đã lưu mô tả công việc',
+      );
+    } finally {
+      setSavingDesc(false);
+    }
+  };
 
   const handleUploadAttachment = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
     setUploadingFile(true);
-    setAttachmentError('');
+    showToast('loading', `Đang tải lên "${file.name}"...`, 0);
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -159,8 +260,9 @@ export default function TaskDetailModal({
       });
       setAttachments((prev) => [res.data, ...prev]);
       setHistoryRefreshTick((t) => t + 1);
+      showToast('success', `Đã đính kèm tệp "${res.data.fileName}"`, 2600);
     } catch (err) {
-      setAttachmentError(err.response?.data?.message || 'Không thể tải tệp đính kèm lên.');
+      showToast('error', err.response?.data?.message || 'Không thể tải tệp đính kèm lên.', 4000);
     } finally {
       setUploadingFile(false);
     }
@@ -180,29 +282,29 @@ export default function TaskDetailModal({
       document.body.removeChild(link);
       URL.revokeObjectURL(blobUrl);
     } catch {
-      setAttachmentError('Không thể tải xuống tệp đính kèm.');
+      showToast('error', 'Không thể tải xuống tệp đính kèm.', 3500);
     }
   };
 
   const handleDeleteAttachment = async (attId) => {
+    showToast('loading', 'Đang xóa tệp đính kèm...', 0);
     try {
       await api.delete(`/tasks/${selectedTask.id}/attachments/${attId}`);
       setAttachments((prev) => prev.filter((a) => a.id !== attId));
       setHistoryRefreshTick((t) => t + 1);
-    } catch {
-      setAttachmentError('Không thể xóa tệp đính kèm.');
+      showToast('success', 'Đã xóa tệp đính kèm', 2500);
+    } catch (err) {
+      showToast('error', err.response?.data?.message || 'Không thể xóa tệp đính kèm.', 4000);
     }
-  };
-
-  const handleSaveForm = async (e) => {
-    await onSaveTaskDetail(e);
-    setHistoryRefreshTick((t) => t + 1);
   };
 
   const handleSubmitComment = async (e) => {
     await onAddComment(e);
     setHistoryRefreshTick((t) => t + 1);
   };
+
+  const subPct = subList.length > 0 ? Math.round((doneCount / subList.length) * 100) : 0;
+  const isDescriptionDirty = (taskEditForm.description || '') !== (selectedTask.description || '');
 
   return (
     <div className="modal-backdrop">
@@ -239,7 +341,7 @@ export default function TaskDetailModal({
           <div className="detail-main-pane">
             <h2 className="detail-task-title">{selectedTask.title}</h2>
 
-            <form id="task-detail-meta-form" onSubmit={handleSaveForm} className="clickup-meta-form">
+            <div className="clickup-meta-form">
               <div className="clickup-prop-grid">
                 <div className="prop-row">
                   <label className="prop-label">Trạng thái</label>
@@ -247,10 +349,7 @@ export default function TaskDetailModal({
                     <select
                       className={`status-select-pill status-val-${taskEditForm.status}`}
                       value={taskEditForm.status}
-                      onChange={(e) => {
-                        setTaskSaveMsg('');
-                        setTaskEditForm({ ...taskEditForm, status: parseInt(e.target.value, 10) });
-                      }}
+                      onChange={handleStatusChange}
                     >
                       {columns.map((c) => (
                         <option key={c.id} value={c.id}>{c.title}</option>
@@ -265,10 +364,7 @@ export default function TaskDetailModal({
                     <AssigneeSelect
                       members={project.members || []}
                       value={taskEditForm.assigneeId}
-                      onChange={(val) => {
-                        setTaskSaveMsg('');
-                        setTaskEditForm({ ...taskEditForm, assigneeId: val });
-                      }}
+                      onChange={handleAssigneeChange}
                       placeholder="-- Chưa chỉ định --"
                     />
                     <button type="button" className="btn-ai-inline" onClick={onSuggestAssignees}>
@@ -282,10 +378,7 @@ export default function TaskDetailModal({
                   <div className="prop-control">
                     <select
                       value={taskEditForm.priority}
-                      onChange={(e) => {
-                        setTaskSaveMsg('');
-                        setTaskEditForm({ ...taskEditForm, priority: parseInt(e.target.value, 10) });
-                      }}
+                      onChange={handlePriorityChange}
                     >
                       <option value={1}>Thấp</option>
                       <option value={2}>Trung bình</option>
@@ -301,10 +394,7 @@ export default function TaskDetailModal({
                     <input
                       type="date"
                       value={taskEditForm.dueDate}
-                      onChange={(e) => {
-                        setTaskSaveMsg('');
-                        setTaskEditForm({ ...taskEditForm, dueDate: e.target.value });
-                      }}
+                      onChange={handleDueDateChange}
                     />
                   </div>
                 </div>
@@ -318,10 +408,9 @@ export default function TaskDetailModal({
                       step="0.5"
                       placeholder="0"
                       value={taskEditForm.estimatedHours}
-                      onChange={(e) => {
-                        setTaskSaveMsg('');
-                        setTaskEditForm({ ...taskEditForm, estimatedHours: e.target.value });
-                      }}
+                      onChange={(e) => setTaskEditForm((prev) => ({ ...prev, estimatedHours: e.target.value }))}
+                      onBlur={() => handleHoursBlur('estimatedHours', 'giờ ước lượng')}
+                      onKeyDown={handleHoursKeyDown}
                     />
                   </div>
                 </div>
@@ -335,10 +424,9 @@ export default function TaskDetailModal({
                       step="0.5"
                       placeholder="0"
                       value={taskEditForm.actualHours}
-                      onChange={(e) => {
-                        setTaskSaveMsg('');
-                        setTaskEditForm({ ...taskEditForm, actualHours: e.target.value });
-                      }}
+                      onChange={(e) => setTaskEditForm((prev) => ({ ...prev, actualHours: e.target.value }))}
+                      onBlur={() => handleHoursBlur('actualHours', 'giờ thực tế')}
+                      onKeyDown={handleHoursKeyDown}
                     />
                   </div>
                 </div>
@@ -353,10 +441,7 @@ export default function TaskDetailModal({
                         type="button"
                         key={s.userId}
                         className={`ai-assignee-chip ${s.isRecommended ? 'recommended' : ''}`}
-                        onClick={() => {
-                          setTaskSaveMsg('');
-                          setTaskEditForm({ ...taskEditForm, assigneeId: s.userId });
-                        }}
+                        onClick={() => handleAssigneeChange(s.userId)}
                       >
                         <span className="ai-assignee-head">
                           <UserAvatar
@@ -399,27 +484,29 @@ export default function TaskDetailModal({
                 );
               })()}
 
-              <div className="desc-editor-card">
-                <label htmlFor="task-detail-desc">Mô tả</label>
+              <form onSubmit={handleSaveDescription} className="desc-editor-card">
+                <div className="desc-header-row">
+                  <label htmlFor="task-detail-desc">Mô tả</label>
+                  {isDescriptionDirty && <span className="desc-unsaved-badge">Chưa lưu</span>}
+                </div>
                 <textarea
                   id="task-detail-desc"
                   rows={4}
                   placeholder="Nhập mô tả chi tiết yêu cầu công việc..."
                   value={taskEditForm.description}
-                  onChange={(e) => {
-                    setTaskSaveMsg('');
-                    setTaskEditForm({ ...taskEditForm, description: e.target.value });
-                  }}
+                  onChange={(e) => setTaskEditForm((prev) => ({ ...prev, description: e.target.value }))}
                 />
-              </div>
-
-              <div className="clickup-save-bar">
-                {taskSaveMsg && <span className="save-feedback">{taskSaveMsg}</span>}
-                <button type="submit" className="btn-primary btn-save-task">
-                  Lưu Cập Nhật Công Việc
-                </button>
-              </div>
-            </form>
+                <div className="clickup-save-bar">
+                  <button
+                    type="submit"
+                    className="btn-primary btn-save-desc"
+                    disabled={savingDesc || !isDescriptionDirty}
+                  >
+                    {savingDesc ? 'Đang lưu...' : 'Lưu mô tả'}
+                  </button>
+                </div>
+              </form>
+            </div>
 
             <div className="subtasks-section">
               <div className="subtasks-header">
@@ -517,8 +604,6 @@ export default function TaskDetailModal({
                   <span>{uploadingFile ? 'Đang tải lên...' : '+ Đính kèm tệp'}</span>
                 </button>
               </div>
-
-              {attachmentError && <p className="ai-error-text">{attachmentError}</p>}
 
               {attachments.length === 0 ? (
                 <p className="attachments-empty">Chưa có tệp đính kèm nào (hỗ trợ PDF, ảnh, Word, Excel, ZIP tối đa 10 MB).</p>
@@ -626,11 +711,7 @@ export default function TaskDetailModal({
             ) : (
               <div className="activity-history-wrap">
                 <div className="activity-pane-body">
-                  {historyLoading ? (
-                    <div className="activity-empty-state">
-                      <p>Đang tải nhật ký chỉnh sửa...</p>
-                    </div>
-                  ) : taskActivities.length === 0 ? (
+                  {taskActivities.length === 0 ? (
                     <div className="activity-empty-state">
                       <HistoryIcon style={{ fontSize: 28, color: '#94a3b8' }} />
                       <p>Chưa có nhật ký chỉnh sửa nào.</p>
@@ -665,6 +746,15 @@ export default function TaskDetailModal({
             )}
           </aside>
         </div>
+
+        {apiToast && (
+          <div className={`task-api-toast is-${apiToast.type}`} role="status" aria-live="polite">
+            {apiToast.type === 'success' && <CheckCircleOutlineIcon style={{ fontSize: 17 }} />}
+            {apiToast.type === 'error' && <ErrorOutlineIcon style={{ fontSize: 17 }} />}
+            {apiToast.type === 'loading' && <span className="toast-spinner" />}
+            <span>{apiToast.text}</span>
+          </div>
+        )}
       </div>
     </div>
   );

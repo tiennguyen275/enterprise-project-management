@@ -1,6 +1,7 @@
 @use '../../base/variables' as *;
 
 .task-detail-modal {
+  position: relative;
   max-width: 1200px !important;
   width: 95vw !important;
   height: 86vh;
@@ -330,12 +331,28 @@
     .desc-editor-card {
       display: flex;
       flex-direction: column;
-      gap: 0.4rem;
+      gap: 0.45rem;
+
+      .desc-header-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+      }
 
       label {
         font-size: 0.8125rem;
         font-weight: 700;
         color: #334155;
+      }
+
+      .desc-unsaved-badge {
+        font-size: 0.7rem;
+        font-weight: 700;
+        color: #b45309;
+        background: #fef3c7;
+        padding: 0.1rem 0.5rem;
+        border-radius: 999px;
       }
 
       textarea {
@@ -365,16 +382,15 @@
       justify-content: flex-end;
       gap: 0.75rem;
 
-      .save-feedback {
-        font-size: 0.8125rem;
-        font-weight: 600;
-        color: #15803d;
-      }
-
-      .btn-save-task {
-        padding: 0.48rem 1rem;
+      .btn-save-desc {
+        padding: 0.42rem 0.95rem;
         font-size: 0.8125rem;
         font-weight: 700;
+
+        &:disabled {
+          opacity: 0.45;
+          cursor: not-allowed;
+        }
       }
     }
   }
@@ -1111,5 +1127,69 @@
   &:hover {
     background: #fee2e2;
     color: #dc2626;
+  }
+}
+
+@keyframes taskToastSlideUp {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 10px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+@keyframes taskToastSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.task-api-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 1.15rem;
+  transform: translateX(-50%);
+  z-index: 40;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 1.05rem;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.25);
+  pointer-events: none;
+  animation: taskToastSlideUp 0.18s ease-out;
+  white-space: nowrap;
+  max-width: 90%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  &.is-loading {
+    background: #0f172a;
+    color: #f8fafc;
+  }
+
+  &.is-success {
+    background: #15803d;
+    color: #ffffff;
+  }
+
+  &.is-error {
+    background: #dc2626;
+    color: #ffffff;
+  }
+
+  .toast-spinner {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 2px solid rgba(248, 250, 252, 0.3);
+    border-top-color: #f8fafc;
+    animation: taskToastSpin 0.65s linear infinite;
+    flex-shrink: 0;
   }
 }
