@@ -24,11 +24,22 @@ public interface ITaskAttachmentService
 public class TaskAttachmentService : ITaskAttachmentService
 {
     public const long MaxFileSizeBytes = 10 * 1024 * 1024;
-    private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly Dictionary<string, string> AllowedMimeTypes = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".pdf", ".png", ".jpg", ".jpeg", ".webp",
-        ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
-        ".txt", ".csv", ".zip"
+        [".pdf"] = "application/pdf",
+        [".png"] = "image/png",
+        [".jpg"] = "image/jpeg",
+        [".jpeg"] = "image/jpeg",
+        [".webp"] = "image/webp",
+        [".doc"] = "application/msword",
+        [".docx"] = "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        [".xls"] = "application/vnd.ms-excel",
+        [".xlsx"] = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        [".ppt"] = "application/vnd.ms-powerpoint",
+        [".pptx"] = "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        [".txt"] = "text/plain",
+        [".csv"] = "text/csv",
+        [".zip"] = "application/zip"
     };
 
     private readonly IRepository<TaskAttachment> _attachmentRepository;
@@ -52,7 +63,15 @@ public class TaskAttachmentService : ITaskAttachmentService
     }
 
     public static bool IsExtensionAllowed(string extension) =>
-        !string.IsNullOrWhiteSpace(extension) && AllowedExtensions.Contains(extension);
+        !string.IsNullOrWhiteSpace(extension) && AllowedMimeTypes.ContainsKey(extension);
+
+    public static string ResolveSafeContentType(string fileName)
+    {
+        var ext = Path.GetExtension(fileName);
+        return !string.IsNullOrWhiteSpace(ext) && AllowedMimeTypes.TryGetValue(ext, out var mime)
+            ? mime
+            : "application/octet-stream";
+    }
 
     public async Task<Guid> ValidateTaskAccessAsync(Guid taskId, Guid requesterUserId, CancellationToken cancellationToken = default)
     {
@@ -107,7 +126,7 @@ public class TaskAttachmentService : ITaskAttachmentService
             UploadedByName = uploader?.FullName ?? "Thành viên",
             FileName = safeName.Length > 200 ? safeName[..200] : safeName,
             StoredFileName = storedFileName,
-            ContentType = string.IsNullOrWhiteSpace(contentType) ? "application/octet-stream" : contentType,
+            ContentType = ResolveSafeContentType(safeName),
             FileSizeBytes = fileSizeBytes
         };
 
@@ -128,9 +147,15 @@ public class TaskAttachmentService : ITaskAttachmentService
 
     public async Task<string?> DeleteAttachmentAsync(Guid taskId, Guid attachmentId, Guid requesterUserId, CancellationToken cancellationToken = default)
     {
-        await ValidateTaskAccessAsync(taskId, requesterUserId, cancellationToken);
+        var projectId = await ValidateTaskAccessAsync(taskId, requesterUserId, cancellationToken);
         var entity = await _attachmentRepository.GetByIdAsync(attachmentId, cancellationToken);
         if (entity == null || entity.TaskId != taskId) return null;
+
+        var isUploader = entity.UploadedById == requesterUserId;
+        if (!isUploader && !await _projectService.CanUserManageProjectAsync(projectId, requesterUserId, cancellationToken))
+        {
+            throw new UnauthorizedAccessException("Chỉ người tải lên hoặc Quản lý dự án mới có quyền xóa tệp đính kèm này.");
+        }
 
         await _attachmentRepository.DeleteAsync(entity, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);

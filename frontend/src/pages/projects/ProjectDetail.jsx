@@ -1419,6 +1419,7 @@ export default function ProjectDetail() {
         />
 
         <TaskDetailModal
+          key={selectedTask?.id || 'closed'}
           selectedTask={selectedTask}
           project={project}
           columns={COLUMNS}

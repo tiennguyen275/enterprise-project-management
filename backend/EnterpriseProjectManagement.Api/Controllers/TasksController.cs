@@ -282,14 +282,26 @@ public class TasksController : ControllerBase
                 await file.CopyToAsync(stream, cancellationToken);
             }
 
-            var saved = await _attachmentService.SaveAttachmentRecordAsync(
-                id,
-                userId,
-                file.FileName,
-                storedName,
-                file.ContentType,
-                file.Length,
-                cancellationToken);
+            TaskAttachmentDto saved;
+            try
+            {
+                saved = await _attachmentService.SaveAttachmentRecordAsync(
+                    id,
+                    userId,
+                    file.FileName,
+                    storedName,
+                    TaskAttachmentService.ResolveSafeContentType(file.FileName),
+                    file.Length,
+                    cancellationToken);
+            }
+            catch
+            {
+                if (System.IO.File.Exists(fullPath))
+                {
+                    System.IO.File.Delete(fullPath);
+                }
+                throw;
+            }
 
             var task = await _taskService.GetTaskByIdAsync(id, cancellationToken);
             await _activityLogService.LogAsync(
