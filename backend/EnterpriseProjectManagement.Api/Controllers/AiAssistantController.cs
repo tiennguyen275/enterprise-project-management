@@ -1,4 +1,5 @@
 using EnterpriseProjectManagement.Application.Common.Exceptions;
+using EnterpriseProjectManagement.Application.Features.AiAssistant.DTOs;
 using EnterpriseProjectManagement.Application.Features.AiAssistant.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -59,6 +60,26 @@ public class AiAssistantController : ControllerBase
         try
         {
             var result = await _aiAssistantService.SuggestAssigneesAsync(taskId, cancellationToken);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("tasks/{taskId:guid}/description-suggestion")]
+    public async Task<IActionResult> SuggestTaskDescription(
+        Guid taskId,
+        [FromBody] TaskDescriptionSuggestionRequestDto? request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await _aiAssistantService.SuggestTaskDescriptionAsync(
+                taskId,
+                request?.CurrentDescription,
+                cancellationToken);
             return Ok(result);
         }
         catch (KeyNotFoundException ex)

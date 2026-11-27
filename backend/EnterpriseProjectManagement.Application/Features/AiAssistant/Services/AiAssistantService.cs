@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using EnterpriseProjectManagement.Application.Common.Exceptions;
 using EnterpriseProjectManagement.Application.Common.Interfaces;
 using EnterpriseProjectManagement.Application.Features.AiAssistant.DTOs;
 using EnterpriseProjectManagement.Application.Features.StatusReports.Services;
@@ -13,6 +14,7 @@ public interface IAiAssistantService
     Task<ProjectInsightResponseDto> GetProjectInsightAsync(Guid projectId, CancellationToken cancellationToken = default);
     Task<SubtaskSuggestionResponseDto> SuggestSubtasksAsync(Guid taskId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<AssigneeSuggestionDto>> SuggestAssigneesAsync(Guid taskId, CancellationToken cancellationToken = default);
+    Task<TaskDescriptionSuggestionResponseDto> SuggestTaskDescriptionAsync(Guid taskId, string? currentDescription = null, CancellationToken cancellationToken = default);
 }
 
 public class AiAssistantService : IAiAssistantService
@@ -176,6 +178,98 @@ public class AiAssistantService : IAiAssistantService
         return workloads
             .Select((w, index) => new AssigneeSuggestionDto(w.Id, w.FullName, w.Count, w.Hours, index == 0))
             .ToList();
+    }
+
+    public async Task<TaskDescriptionSuggestionResponseDto> SuggestTaskDescriptionAsync(
+        Guid taskId,
+        string? currentDescription = null,
+        CancellationToken cancellationToken = default)
+    {
+        var task = await _taskRepository.GetByIdAsync(taskId, cancellationToken);
+        if (task == null)
+        {
+            throw new KeyNotFoundException("Không tìm thấy công việc.");
+        }
+
+        var project = await _projectRepository.GetByIdAsync(task.ProjectId, cancellationToken);
+        var subTasks = await _taskRepository.FindAsync(t => t.ParentTaskId == taskId, cancellationToken);
+        var draft = string.IsNullOrWhiteSpace(currentDescription) ? task.Description : currentDescription.Trim();
+
+        var builder = new StringBuilder();
+        builder.AppendLine("Viết hoặc tối ưu mô tả chi tiết công việc bằng tiếng Việt (văn bản thuần, không dùng ký tự markdown ** hay #).");
+        builder.AppendLine("Gồm 3 phần ngắn gọn: 1. Mục tiêu, 2. Phạm vi thực hiện, 3. Tiêu chí nghiệm thu.");
+        if (project != null)
+        {
+            builder.AppendLine($"Dự án: {project.Name} ({project.Code})");
+        }
+        builder.AppendLine($"Công việc: [{task.TaskCode}] {task.Title}");
+        if (!string.IsNullOrWhiteSpace(draft))
+        {
+            builder.AppendLine($"Mô tả nháp hiện tại: {draft}");
+        }
+        if (subTasks.Any())
+        {
+            builder.AppendLine("Các việc con hiện có:");
+            foreach (var sub in subTasks)
+            {
+                builder.AppendLine($"- {sub.Title}");
+            }
+        }
+
+        try
+        {
+            var generated = await _aiTextGenerator.GenerateAsync(SystemInstruction, builder.ToString(), false, cancellationToken);
+            if (!string.IsNullOrWhiteSpace(generated))
+            {
+                return new TaskDescriptionSuggestionResponseDto(generated.Trim());
+            }
+        }
+        catch (AiUnavailableException)
+        {
+        }
+
+        var fallback = BuildFallbackDescription(task, project, draft, subTasks);
+        return new TaskDescriptionSuggestionResponseDto(fallback);
+    }
+
+    private static string BuildFallbackDescription(
+        ProjectTask task,
+        Project? project,
+        string? draft,
+        IEnumerable<ProjectTask> subTasks)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("1. Mục tiêu:");
+        if (!string.IsNullOrWhiteSpace(draft))
+        {
+            sb.AppendLine($"- {draft.Trim()}");
+        }
+        else
+        {
+            sb.AppendLine($"- Hoàn thiện hạng mục \"{task.Title}\" thuộc dự án {project?.Name ?? task.TaskCode} đúng tiến độ và chất lượng.");
+        }
+
+        sb.AppendLine();
+        sb.AppendLine("2. Phạm vi thực hiện:");
+        var subList = subTasks.ToList();
+        if (subList.Count > 0)
+        {
+            foreach (var sub in subList)
+            {
+                sb.AppendLine($"- {sub.Title}");
+            }
+        }
+        else
+        {
+            sb.AppendLine($"- Phân tích yêu cầu chi tiết và thiết kế giải pháp cho \"{task.Title}\".");
+            sb.AppendLine("- Triển khai mã nguồn, xử lý đầy đủ các trường hợp biên và kiểm thử tích hợp.");
+        }
+
+        sb.AppendLine();
+        sb.AppendLine("3. Tiêu chí nghiệm thu:");
+        sb.AppendLine("- Đáp ứng đầy đủ yêu cầu nghiệp vụ, không phát sinh lỗi nghiêm trọng (P0/P1).");
+        sb.Append("- Cập nhật tiến độ, giờ thực tế và bàn giao tài liệu/tệp đính kèm liên quan trước hạn hoàn thành.");
+        return sb.ToString();
     }
 
     private static IReadOnlyList<string> ParseSuggestions(string raw)

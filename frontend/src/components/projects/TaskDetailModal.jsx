@@ -11,6 +11,7 @@ import ImageOutlinedIcon from '@mui/icons-material/ImageOutlined';
 import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined';
 import HistoryIcon from '@mui/icons-material/History';
 import SendOutlinedIcon from '@mui/icons-material/SendOutlined';
+import AutoAwesomeOutlinedIcon from '@mui/icons-material/AutoAwesomeOutlined';
 
 function formatFileSize(bytes) {
   if (!bytes || bytes < 1024) return `${bytes || 0} B`;
@@ -91,6 +92,7 @@ export default function TaskDetailModal({
   const [attachments, setAttachments] = useState([]);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [savingDesc, setSavingDesc] = useState(false);
+  const [aiDescLoading, setAiDescLoading] = useState(false);
   const [sendingComment, setSendingComment] = useState(false);
   const [pendingCommentFile, setPendingCommentFile] = useState(null);
   const [rightTab, setRightTab] = useState('comments');
@@ -269,6 +271,29 @@ export default function TaskDetailModal({
       );
     } finally {
       if (isMountedRef.current) setSavingDesc(false);
+    }
+  };
+
+  const handleGenerateAiDescription = async () => {
+    if (aiDescLoading) return;
+    setAiDescLoading(true);
+    showToast('loading', 'AI đang soạn thảo mô tả công việc...', 0);
+    try {
+      const res = await api.post(`/ai/tasks/${selectedTask.id}/description-suggestion`, {
+        currentDescription: taskEditForm.description,
+      });
+      if (!isMountedRef.current) return;
+      if (res.data?.description) {
+        setTaskEditForm((prev) => ({ ...prev, description: res.data.description }));
+        showToast('success', 'AI đã tạo mô tả — kiểm tra và bấm Lưu mô tả', 3000);
+      } else {
+        showToast('error', 'AI không trả về nội dung mô tả.', 3500);
+      }
+    } catch (err) {
+      if (!isMountedRef.current) return;
+      showToast('error', err.response?.data?.message || 'Không thể tạo mô tả bằng AI.', 4000);
+    } finally {
+      if (isMountedRef.current) setAiDescLoading(false);
     }
   };
 
@@ -452,8 +477,9 @@ export default function TaskDetailModal({
                       onChange={handleAssigneeChange}
                       placeholder="-- Chưa chỉ định --"
                     />
-                    <button type="button" className="btn-ai-inline" onClick={onSuggestAssignees}>
-                      Gợi ý AI
+                    <button type="button" className="btn-ai-magic" onClick={onSuggestAssignees}>
+                      <AutoAwesomeOutlinedIcon style={{ fontSize: 15 }} />
+                      <span>Gợi ý AI</span>
                     </button>
                   </div>
                 </div>
@@ -571,8 +597,19 @@ export default function TaskDetailModal({
 
               <form onSubmit={handleSaveDescription} className="desc-editor-card">
                 <div className="desc-header-row">
-                  <label htmlFor="task-detail-desc">Mô tả</label>
-                  {isDescriptionDirty && <span className="desc-unsaved-badge">Chưa lưu</span>}
+                  <div className="desc-label-wrap">
+                    <label htmlFor="task-detail-desc">Mô tả</label>
+                    {isDescriptionDirty && <span className="desc-unsaved-badge">Chưa lưu</span>}
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-ai-magic"
+                    disabled={aiDescLoading}
+                    onClick={handleGenerateAiDescription}
+                  >
+                    <AutoAwesomeOutlinedIcon style={{ fontSize: 15 }} />
+                    <span>{aiDescLoading ? 'AI đang viết...' : 'Dùng AI'}</span>
+                  </button>
                 </div>
                 <textarea
                   id="task-detail-desc"
@@ -645,11 +682,12 @@ export default function TaskDetailModal({
               <div className="ai-subtask-box">
                 <button
                   type="button"
-                  className="btn-ai-inline"
+                  className="btn-ai-magic"
                   onClick={onSuggestSubtasks}
                   disabled={suggestionLoading}
                 >
-                  {suggestionLoading ? 'AI đang phân tích...' : 'Gợi ý việc con bằng AI'}
+                  <AutoAwesomeOutlinedIcon style={{ fontSize: 15 }} />
+                  <span>{suggestionLoading ? 'AI đang phân tích...' : 'Gợi ý việc con bằng AI'}</span>
                 </button>
                 {suggestionError && <p className="ai-error-text">{suggestionError}</p>}
                 {subtaskSuggestions.length > 0 && (

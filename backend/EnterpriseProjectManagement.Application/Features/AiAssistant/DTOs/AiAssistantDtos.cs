@@ -16,3 +16,11 @@ public record AssigneeSuggestionDto(
     decimal OpenEstimatedHours,
     bool IsRecommended
 );
+
+public record TaskDescriptionSuggestionRequestDto(
+    string? CurrentDescription
+);
+
+public record TaskDescriptionSuggestionResponseDto(
+    string Description
+);
