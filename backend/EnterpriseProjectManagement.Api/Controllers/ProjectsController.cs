@@ -78,7 +78,20 @@ public class ProjectsController : ControllerBase
     {
         try
         {
+            var actorId = GetCurrentUserId();
+            if (!await _projectService.CanUserManageProjectAsync(id, actorId, cancellationToken))
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = "Chỉ Quản trị viên hoặc Quản lý dự án mới có quyền chỉnh sửa dự án." });
+            }
+
             var project = await _projectService.UpdateProjectAsync(id, request, cancellationToken);
+            await _activityLogService.LogAsync(
+                id,
+                actorId,
+                "project_updated",
+                project.Code,
+                $"Cập nhật thông tin dự án \"{project.Name}\"",
+                cancellationToken);
             return Ok(project);
         }
         catch (KeyNotFoundException ex)
@@ -90,6 +103,12 @@ public class ProjectsController : ControllerBase
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> DeleteProject(Guid id, CancellationToken cancellationToken)
     {
+        var actorId = GetCurrentUserId();
+        if (!await _projectService.CanUserManageProjectAsync(id, actorId, cancellationToken))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = "Chỉ Quản trị viên hoặc Quản lý dự án mới có quyền xóa dự án." });
+        }
+
         await _projectService.DeleteProjectAsync(id, cancellationToken);
         return NoContent();
     }
@@ -124,6 +143,37 @@ public class ProjectsController : ControllerBase
             }
 
             return Ok(new { message = "Đã thêm thành viên vào dự án thành công." });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpDelete("{id:guid}/members/{memberUserId:guid}")]
+    public async Task<IActionResult> RemoveMember(Guid id, Guid memberUserId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var actorId = GetCurrentUserId();
+            await _projectService.RemoveMemberAsync(id, memberUserId, actorId, cancellationToken);
+            var project = await _projectService.GetProjectByIdAsync(id, cancellationToken);
+            await _activityLogService.LogAsync(
+                id,
+                actorId,
+                "member_removed",
+                project?.Code,
+                "Đã gỡ một thành viên khỏi dự án",
+                cancellationToken);
+            return NoContent();
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
         }
         catch (KeyNotFoundException ex)
         {

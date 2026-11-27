@@ -206,6 +206,27 @@ using (var scope = app.Services.CreateScope())
             );
             CREATE INDEX [IX_ProjectActivityLogs_ProjectId] ON [dbo].[ProjectActivityLogs] ([ProjectId]);
         END
+
+        IF OBJECT_ID(N'dbo.TaskAttachments', N'U') IS NULL
+        BEGIN
+            CREATE TABLE [dbo].[TaskAttachments] (
+                [Id] uniqueidentifier NOT NULL,
+                [TaskId] uniqueidentifier NOT NULL,
+                [UploadedById] uniqueidentifier NOT NULL,
+                [UploadedByName] nvarchar(150) NOT NULL,
+                [FileName] nvarchar(255) NOT NULL,
+                [StoredFileName] nvarchar(255) NOT NULL,
+                [ContentType] nvarchar(150) NOT NULL,
+                [FileSizeBytes] bigint NOT NULL,
+                [CreatedAt] datetime2 NOT NULL,
+                [CreatedBy] nvarchar(max) NULL,
+                [UpdatedAt] datetime2 NULL,
+                [UpdatedBy] nvarchar(max) NULL,
+                [IsDeleted] bit NOT NULL,
+                CONSTRAINT [PK_TaskAttachments] PRIMARY KEY ([Id])
+            );
+            CREATE INDEX [IX_TaskAttachments_TaskId] ON [dbo].[TaskAttachments] ([TaskId]);
+        END
     ");
 }
 

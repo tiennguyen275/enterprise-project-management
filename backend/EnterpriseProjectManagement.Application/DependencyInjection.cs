@@ -30,6 +30,7 @@ public static class DependencyInjection
         services.AddScoped<IGlobalSearchService, GlobalSearchService>();
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IActivityLogService, ActivityLogService>();
+        services.AddScoped<ITaskAttachmentService, TaskAttachmentService>();
         return services;
     }
 }

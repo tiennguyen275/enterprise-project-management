@@ -15,17 +15,20 @@ namespace EnterpriseProjectManagement.Api.Controllers;
 public class TasksController : ControllerBase
 {
     private readonly ITaskService _taskService;
+    private readonly ITaskAttachmentService _attachmentService;
     private readonly IRealtimeNotificationService _realtimeNotificationService;
     private readonly INotificationService _notificationService;
     private readonly IActivityLogService _activityLogService;
 
     public TasksController(
         ITaskService taskService,
+        ITaskAttachmentService attachmentService,
         IRealtimeNotificationService realtimeNotificationService,
         INotificationService notificationService,
         IActivityLogService activityLogService)
     {
         _taskService = taskService;
+        _attachmentService = attachmentService;
         _realtimeNotificationService = realtimeNotificationService;
         _notificationService = notificationService;
         _activityLogService = activityLogService;
@@ -218,6 +221,153 @@ public class TasksController : ControllerBase
         catch (InvalidOperationException ex)
         {
             return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    private static string GetAttachmentsRootPath()
+    {
+        var dir = Path.Combine(AppContext.BaseDirectory, "uploads", "attachments");
+        Directory.CreateDirectory(dir);
+        return dir;
+    }
+
+    [HttpGet("{id:guid}/attachments")]
+    public async Task<IActionResult> GetAttachments(Guid id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            var items = await _attachmentService.GetAttachmentsAsync(id, userId, cancellationToken);
+            return Ok(items);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("{id:guid}/attachments")]
+    [RequestSizeLimit(TaskAttachmentService.MaxFileSizeBytes)]
+    public async Task<IActionResult> UploadAttachment(Guid id, [FromForm] IFormFile? file, CancellationToken cancellationToken)
+    {
+        if (file == null || file.Length == 0)
+        {
+            return BadRequest(new { message = "Vui lòng chọn tệp đính kèm hợp lệ." });
+        }
+
+        if (file.Length > TaskAttachmentService.MaxFileSizeBytes)
+        {
+            return BadRequest(new { message = "Tệp đính kèm không được vượt quá 10 MB." });
+        }
+
+        var ext = Path.GetExtension(file.FileName);
+        if (!TaskAttachmentService.IsExtensionAllowed(ext))
+        {
+            return BadRequest(new { message = "Định dạng tệp không được hỗ trợ. Hỗ trợ: PDF, ảnh, Word, Excel, PowerPoint, TXT, CSV, ZIP." });
+        }
+
+        try
+        {
+            var userId = GetCurrentUserId();
+            var projectId = await _attachmentService.ValidateTaskAccessAsync(id, userId, cancellationToken);
+            var storedName = $"{Guid.NewGuid():N}{ext.ToLowerInvariant()}";
+            var fullPath = Path.Combine(GetAttachmentsRootPath(), storedName);
+
+            await using (var stream = new FileStream(fullPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                await file.CopyToAsync(stream, cancellationToken);
+            }
+
+            var saved = await _attachmentService.SaveAttachmentRecordAsync(
+                id,
+                userId,
+                file.FileName,
+                storedName,
+                file.ContentType,
+                file.Length,
+                cancellationToken);
+
+            var task = await _taskService.GetTaskByIdAsync(id, cancellationToken);
+            await _activityLogService.LogAsync(
+                projectId,
+                userId,
+                "attachment_uploaded",
+                task?.TaskCode,
+                $"Đính kèm tệp \"{saved.FileName}\"",
+                cancellationToken);
+
+            return Ok(saved);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("{id:guid}/attachments/{attachmentId:guid}/download")]
+    public async Task<IActionResult> DownloadAttachment(Guid id, Guid attachmentId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            var fileMeta = await _attachmentService.GetAttachmentFileAsync(id, attachmentId, userId, cancellationToken);
+            if (fileMeta == null) return NotFound(new { message = "Không tìm thấy tệp đính kèm." });
+
+            var fullPath = Path.Combine(GetAttachmentsRootPath(), Path.GetFileName(fileMeta.StoredFileName));
+            if (!System.IO.File.Exists(fullPath))
+            {
+                return NotFound(new { message = "Tệp không còn tồn tại trên máy chủ." });
+            }
+
+            Response.Headers["X-Content-Type-Options"] = "nosniff";
+            return PhysicalFile(fullPath, fileMeta.ContentType, fileMeta.FileName);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
+    [HttpDelete("{id:guid}/attachments/{attachmentId:guid}")]
+    public async Task<IActionResult> DeleteAttachment(Guid id, Guid attachmentId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            var storedName = await _attachmentService.DeleteAttachmentAsync(id, attachmentId, userId, cancellationToken);
+            if (storedName == null) return NotFound(new { message = "Không tìm thấy tệp đính kèm." });
+
+            var fullPath = Path.Combine(GetAttachmentsRootPath(), Path.GetFileName(storedName));
+            if (System.IO.File.Exists(fullPath))
+            {
+                System.IO.File.Delete(fullPath);
+            }
+
+            return NoContent();
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
         }
     }
 }

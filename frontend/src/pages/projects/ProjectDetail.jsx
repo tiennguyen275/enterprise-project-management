@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { createProjectHubConnection } from '../../services/signalr';
 import ForumOutlinedIcon from '@mui/icons-material/ForumOutlined';
 import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
-import { useParams, Link, useSearchParams } from 'react-router-dom';
+import { useParams, Link, useSearchParams, useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import Navbar from '../../components/layout/Navbar';
 import UserAvatar from '../../components/common/UserAvatar';
@@ -15,8 +15,11 @@ import HealthReportsTab from '../../components/projects/HealthReportsTab';
 import MeetingNotesTab from '../../components/projects/MeetingNotesTab';
 import AnalyticsAuditTab from '../../components/projects/AnalyticsAuditTab';
 import TaskDetailModal from '../../components/projects/TaskDetailModal';
+import ProjectSettingsModal from '../../components/projects/ProjectSettingsModal';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import AddIcon from '@mui/icons-material/Add';
+import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
+import CloseIcon from '@mui/icons-material/Close';
 import ErrorOutlineOutlinedIcon from '@mui/icons-material/ErrorOutlineOutlined';
 import PersonAddAlt1OutlinedIcon from '@mui/icons-material/PersonAddAlt1Outlined';
 import BarChartOutlinedIcon from '@mui/icons-material/BarChartOutlined';
@@ -41,8 +44,10 @@ const HEALTH_LABELS = {
 
 export default function ProjectDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTaskId = searchParams.get('taskId');
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   const [activeTab, setActiveTab] = useState('kanban');
   const [project, setProject] = useState(null);
@@ -841,6 +846,10 @@ export default function ProjectDetail() {
               <PersonAddAlt1OutlinedIcon fontSize="small" />
               <span>Mời Thành Viên ({project.members?.length || 1})</span>
             </button>
+            <button onClick={() => setShowSettingsModal(true)} className="btn-secondary" title="Cài đặt dự án">
+              <SettingsOutlinedIcon fontSize="small" />
+              <span>Cài đặt</span>
+            </button>
             <button onClick={() => setShowTaskModal(true)} className="btn-primary">
               <AddIcon fontSize="small" />
               <span>Thêm Công Việc</span>
@@ -1102,6 +1111,24 @@ export default function ProjectDetail() {
                     <div key={m.userId} className="project-member-chip" title={m.email}>
                       <UserAvatar name={m.fullName} email={m.email} avatarUrl={m.avatarUrl} size="xs" />
                       <span>{m.fullName}</span>
+                      {m.role !== 1 && (
+                        <button
+                          type="button"
+                          className="btn-remove-member-chip"
+                          title="Gỡ thành viên khỏi dự án"
+                          onClick={async () => {
+                            setMemberError('');
+                            try {
+                              await api.delete(`/projects/${id}/members/${m.userId}`);
+                              fetchProjectData();
+                            } catch (err) {
+                              setMemberError(err.response?.data?.message || 'Không thể gỡ thành viên.');
+                            }
+                          }}
+                        >
+                          <CloseIcon style={{ fontSize: 13 }} />
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1375,6 +1402,21 @@ export default function ProjectDetail() {
             </div>
           </div>
         )}
+
+        <ProjectSettingsModal
+          key={showSettingsModal ? `${project.id}-${project.name}` : 'closed'}
+          project={project}
+          open={showSettingsModal}
+          onClose={() => setShowSettingsModal(false)}
+          onSaveProject={async (payload) => {
+            await api.put(`/projects/${id}`, payload);
+            await fetchProjectData();
+          }}
+          onDeleteProject={async () => {
+            await api.delete(`/projects/${id}`);
+            navigate('/');
+          }}
+        />
 
         <TaskDetailModal
           selectedTask={selectedTask}

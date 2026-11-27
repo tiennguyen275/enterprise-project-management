@@ -22,6 +22,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<TaskDependency> TaskDependencies => Set<TaskDependency>();
     public DbSet<UserNotification> UserNotifications => Set<UserNotification>();
     public DbSet<ProjectActivityLog> ProjectActivityLogs => Set<ProjectActivityLog>();
+    public DbSet<TaskAttachment> TaskAttachments => Set<TaskAttachment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -38,6 +39,7 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<TaskDependency>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<UserNotification>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<ProjectActivityLog>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<TaskAttachment>().HasQueryFilter(e => !e.IsDeleted);
 
         modelBuilder.Entity<User>(entity =>
         {
