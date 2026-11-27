@@ -7,6 +7,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlineOutlined';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutlineOutlined';
 import AttachFileOutlinedIcon from '@mui/icons-material/AttachFileOutlined';
+import ImageOutlinedIcon from '@mui/icons-material/ImageOutlined';
 import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined';
 import HistoryIcon from '@mui/icons-material/History';
 import SendOutlinedIcon from '@mui/icons-material/SendOutlined';
@@ -82,11 +83,16 @@ export default function TaskDetailModal({
   onAddComment,
 }) {
   const fileInputRef = useRef(null);
+  const commentFileInputRef = useRef(null);
+  const commentImageInputRef = useRef(null);
   const toastTimerRef = useRef(null);
   const isMountedRef = useRef(true);
+  const pendingPreviewUrlRef = useRef(null);
   const [attachments, setAttachments] = useState([]);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [savingDesc, setSavingDesc] = useState(false);
+  const [sendingComment, setSendingComment] = useState(false);
+  const [pendingCommentFile, setPendingCommentFile] = useState(null);
   const [rightTab, setRightTab] = useState('comments');
   const [taskActivities, setTaskActivities] = useState([]);
   const [historyRefreshTick, setHistoryRefreshTick] = useState(0);
@@ -102,6 +108,10 @@ export default function TaskDetailModal({
     return () => {
       isMountedRef.current = false;
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      if (pendingPreviewUrlRef.current) {
+        URL.revokeObjectURL(pendingPreviewUrlRef.current);
+        pendingPreviewUrlRef.current = null;
+      }
     };
   }, []);
 
@@ -318,8 +328,64 @@ export default function TaskDetailModal({
     }
   };
 
+  const clearPendingCommentFile = () => {
+    if (pendingPreviewUrlRef.current) {
+      URL.revokeObjectURL(pendingPreviewUrlRef.current);
+      pendingPreviewUrlRef.current = null;
+    }
+    setPendingCommentFile(null);
+  };
+
+  const handleSelectCommentFile = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (pendingPreviewUrlRef.current) {
+      URL.revokeObjectURL(pendingPreviewUrlRef.current);
+      pendingPreviewUrlRef.current = null;
+    }
+    const isImage = file.type && file.type.startsWith('image/');
+    const previewUrl = isImage ? URL.createObjectURL(file) : null;
+    if (previewUrl) pendingPreviewUrlRef.current = previewUrl;
+    setPendingCommentFile({ file, isImage, previewUrl });
+  };
+
   const handleSubmitComment = async (e) => {
-    await onAddComment(e);
+    e.preventDefault();
+    if (sendingComment) return;
+    const trimmed = commentText.trim();
+    if (!trimmed && !pendingCommentFile) return;
+
+    setSendingComment(true);
+    showToast('loading', pendingCommentFile ? 'Đang tải tệp & gửi bình luận...' : 'Đang gửi bình luận...', 0);
+    try {
+      let uploadedAtt = null;
+      if (pendingCommentFile) {
+        const formData = new FormData();
+        formData.append('file', pendingCommentFile.file);
+        const uploadRes = await api.post(`/tasks/${selectedTask.id}/attachments`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        if (!isMountedRef.current) return;
+        uploadedAtt = uploadRes.data;
+        setAttachments((prev) => [uploadedAtt, ...prev]);
+        setHistoryRefreshTick((t) => t + 1);
+      }
+
+      const finalContent = uploadedAtt
+        ? (trimmed ? `${trimmed}\n[Đính kèm: ${uploadedAtt.fileName}]` : `[Đính kèm: ${uploadedAtt.fileName}]`)
+        : trimmed;
+
+      await onAddComment(null, finalContent);
+      if (!isMountedRef.current) return;
+      clearPendingCommentFile();
+      showToast('success', uploadedAtt ? 'Đã gửi bình luận kèm tệp đính kèm' : 'Đã gửi bình luận', 2500);
+    } catch (err) {
+      if (!isMountedRef.current) return;
+      showToast('error', err.response?.data?.message || 'Không thể gửi bình luận.', 4000);
+    } finally {
+      if (isMountedRef.current) setSendingComment(false);
+    }
   };
 
   const subPct = subList.length > 0 ? Math.round((doneCount / subList.length) * 100) : 0;
@@ -717,14 +783,82 @@ export default function TaskDetailModal({
 
                 <form onSubmit={handleSubmitComment} className="activity-pane-composer">
                   <input
-                    type="text"
-                    placeholder="Ghi chú, phản hồi công việc..."
-                    value={commentText}
-                    onChange={(e) => setCommentText(e.target.value)}
+                    ref={commentImageInputRef}
+                    type="file"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={handleSelectCommentFile}
                   />
-                  <button type="submit" className="btn-send-comment" title="Gửi bình luận">
-                    <SendOutlinedIcon style={{ fontSize: 16 }} />
-                  </button>
+                  <input
+                    ref={commentFileInputRef}
+                    type="file"
+                    style={{ display: 'none' }}
+                    onChange={handleSelectCommentFile}
+                  />
+                  <div className="composer-unified-box">
+                    {pendingCommentFile && (
+                      <div className="composer-pending-file">
+                        {pendingCommentFile.isImage && pendingCommentFile.previewUrl ? (
+                          <img
+                            src={pendingCommentFile.previewUrl}
+                            alt={pendingCommentFile.file.name}
+                            className="pending-file-thumb"
+                          />
+                        ) : (
+                          <AttachFileOutlinedIcon style={{ fontSize: 16, color: '#2563eb' }} />
+                        )}
+                        <div className="pending-file-meta">
+                          <strong title={pendingCommentFile.file.name}>{pendingCommentFile.file.name}</strong>
+                          <span>{formatFileSize(pendingCommentFile.file.size)}</span>
+                        </div>
+                        <button
+                          type="button"
+                          className="btn-clear-pending"
+                          title="Bỏ tệp đính kèm"
+                          onClick={clearPendingCommentFile}
+                        >
+                          <CloseIcon style={{ fontSize: 14 }} />
+                        </button>
+                      </div>
+                    )}
+                    <div className="composer-input-row">
+                      <input
+                        type="text"
+                        placeholder="Ghi chú, phản hồi công việc..."
+                        value={commentText}
+                        onChange={(e) => setCommentText(e.target.value)}
+                        disabled={sendingComment}
+                      />
+                      <div className="composer-inline-actions">
+                        <button
+                          type="button"
+                          className="btn-composer-tool"
+                          title="Đính kèm hình ảnh"
+                          disabled={sendingComment}
+                          onClick={() => commentImageInputRef.current?.click()}
+                        >
+                          <ImageOutlinedIcon style={{ fontSize: 18 }} />
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-composer-tool"
+                          title="Đính kèm tập tin"
+                          disabled={sendingComment}
+                          onClick={() => commentFileInputRef.current?.click()}
+                        >
+                          <AttachFileOutlinedIcon style={{ fontSize: 18 }} />
+                        </button>
+                        <button
+                          type="submit"
+                          className="btn-send-comment"
+                          title="Gửi bình luận"
+                          disabled={sendingComment || (!commentText.trim() && !pendingCommentFile)}
+                        >
+                          <SendOutlinedIcon style={{ fontSize: 16 }} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </form>
               </div>
             ) : (

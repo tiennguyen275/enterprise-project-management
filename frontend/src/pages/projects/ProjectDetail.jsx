@@ -144,9 +144,9 @@ export default function ProjectDetail() {
   const [newDep, setNewDep] = useState({ predecessorTaskId: '', successorTaskId: '', lagDays: 0 });
   const [depError, setDepError] = useState('');
 
-  const fetchProjectData = async () => {
+  const fetchProjectData = async ({ silent = false } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const params = new URLSearchParams();
       if (timeframeFilter.startDate) params.append('startDate', timeframeFilter.startDate);
       if (timeframeFilter.endDate) params.append('endDate', timeframeFilter.endDate);
@@ -171,7 +171,7 @@ export default function ProjectDetail() {
     } catch (err) {
       console.error('Lỗi tải dữ liệu dự án:', err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -661,6 +661,7 @@ export default function ProjectDetail() {
           : (base.assigneeId || null),
       };
       const res = await api.put(`/tasks/${targetTaskId}`, payload);
+      setTasks((prev) => prev.map((t) => (t.id === targetTaskId ? { ...t, ...res.data } : t)));
       if (selectedTaskRef.current?.id === targetTaskId) {
         selectedTaskRef.current = res.data;
         setSelectedTask(res.data);
@@ -676,7 +677,7 @@ export default function ProjectDetail() {
           ...(patch.assigneeId !== undefined ? { assigneeId: res.data.assigneeId || '' } : {}),
         }));
       }
-      fetchProjectData();
+      fetchProjectData({ silent: true });
       return res.data;
     };
 
@@ -807,22 +808,20 @@ export default function ProjectDetail() {
     }
   };
 
-  const handleAddComment = async (e) => {
-    e.preventDefault();
-    if (!commentText.trim() || !selectedTask) return;
-    try {
-      const res = await api.post(`/tasks/${selectedTask.id}/comments`, { content: commentText });
-      const updatedComments = [...(selectedTask.comments || []), res.data];
-      setSelectedTask(prev => ({
-        ...prev,
-        comments: updatedComments
-      }));
-      setTasks(prev => prev.map(t => t.id === selectedTask.id ? { ...t, comments: updatedComments } : t));
+  const handleAddComment = async (e, overrideContent = null) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const content = (overrideContent !== null ? overrideContent : commentText).trim();
+    const targetTask = selectedTaskRef.current;
+    if (!content || !targetTask) return false;
+    const res = await api.post(`/tasks/${targetTask.id}/comments`, { content });
+    if (selectedTaskRef.current?.id === targetTask.id) {
+      const updatedComments = [...(selectedTaskRef.current.comments || []), res.data];
+      selectedTaskRef.current = { ...selectedTaskRef.current, comments: updatedComments };
+      setSelectedTask((prev) => (prev && prev.id === targetTask.id ? { ...prev, comments: updatedComments } : prev));
+      setTasks((prev) => prev.map((t) => (t.id === targetTask.id ? { ...t, comments: updatedComments } : t)));
       setCommentText('');
-    } catch (err) {
-      console.error('Lỗi gửi bình luận:', err);
-      alert('Không thể gửi bình luận.');
     }
+    return true;
   };
 
   if (loading) {
