@@ -1,5 +1,7 @@
 using EnterpriseProjectManagement.Application.Features.Activities.Services;
+using EnterpriseProjectManagement.Application.Features.Projects.Services;
 using EnterpriseProjectManagement.Application.Features.Search.Services;
+using EnterpriseProjectManagement.Application.Features.Tasks.Services;
 using EnterpriseProjectManagement.Application.Features.Users.Services;
 using EnterpriseProjectManagement.Domain.Entities;
 using EnterpriseProjectManagement.Domain.Enums;
@@ -101,5 +103,40 @@ public class SecurityAndRbacTests
         Assert.Empty(lockedHit.Projects);
         Assert.Empty(lockedHit.Tasks);
         Assert.Empty(lockedHit.Users);
+    }
+
+    [Fact]
+    public async Task ProjectService_RemoveMember_BlocksNonManagerAndProtectsOwner()
+    {
+        var owner = new User { Email = "owner@epms.vn", FullName = "Owner", SystemRole = SystemRole.User, IsActive = true };
+        var member = new User { Email = "member@epms.vn", FullName = "Member", SystemRole = SystemRole.User, IsActive = true };
+        var project = new Project { Name = "Demo", Code = "DM-01" };
+        var mOwner = new ProjectMember { ProjectId = project.Id, UserId = owner.Id, Role = ProjectRole.Owner };
+        var mMember = new ProjectMember { ProjectId = project.Id, UserId = member.Id, Role = ProjectRole.Member };
+
+        var service = new ProjectService(
+            new InMemoryRepository<Project>(new[] { project }),
+            new InMemoryRepository<ProjectMember>(new[] { mOwner, mMember }),
+            new InMemoryRepository<User>(new[] { owner, member }),
+            new InMemoryRepository<ProjectTask>(),
+            new FakeUnitOfWork());
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            service.RemoveMemberAsync(project.Id, owner.Id, member.Id));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.RemoveMemberAsync(project.Id, owner.Id, owner.Id));
+
+        await service.RemoveMemberAsync(project.Id, member.Id, owner.Id);
+        Assert.False(await service.CanUserAccessProjectAsync(project.Id, member.Id));
+    }
+
+    [Fact]
+    public void TaskAttachmentService_ValidatesAllowedFileExtensions()
+    {
+        Assert.True(TaskAttachmentService.IsExtensionAllowed(".pdf"));
+        Assert.True(TaskAttachmentService.IsExtensionAllowed(".XLSX"));
+        Assert.False(TaskAttachmentService.IsExtensionAllowed(".exe"));
+        Assert.False(TaskAttachmentService.IsExtensionAllowed(".html"));
     }
 }

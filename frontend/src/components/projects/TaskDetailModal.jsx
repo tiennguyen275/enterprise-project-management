@@ -1,10 +1,19 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import api from '../../services/api';
 import UserAvatar from '../common/UserAvatar';
 import AssigneeSelect from '../common/AssigneeSelect';
 import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined';
 import CloseIcon from '@mui/icons-material/Close';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlineOutlined';
 import ChatBubbleOutlineOutlinedIcon from '@mui/icons-material/ChatBubbleOutlineOutlined';
+import AttachFileOutlinedIcon from '@mui/icons-material/AttachFileOutlined';
+import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined';
+
+function formatFileSize(bytes) {
+  if (!bytes || bytes < 1024) return `${bytes || 0} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
 
 export default function TaskDetailModal({
   selectedTask,
@@ -33,7 +42,78 @@ export default function TaskDetailModal({
   onAddSuggestedSubtask,
   onAddComment,
 }) {
+  const fileInputRef = useRef(null);
+  const [attachments, setAttachments] = useState([]);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [attachmentError, setAttachmentError] = useState('');
+  const taskId = selectedTask?.id;
+
+  useEffect(() => {
+    if (!taskId) return undefined;
+    let isMounted = true;
+    api.get(`/tasks/${taskId}/attachments`)
+      .then((res) => {
+        if (isMounted) {
+          setAttachments(res.data || []);
+          setAttachmentError('');
+        }
+      })
+      .catch(() => {
+        if (isMounted) setAttachments([]);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [taskId]);
+
   if (!selectedTask) return null;
+
+  const handleUploadAttachment = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploadingFile(true);
+    setAttachmentError('');
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await api.post(`/tasks/${selectedTask.id}/attachments`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setAttachments((prev) => [res.data, ...prev]);
+    } catch (err) {
+      setAttachmentError(err.response?.data?.message || 'Không thể tải tệp đính kèm lên.');
+    } finally {
+      setUploadingFile(false);
+    }
+  };
+
+  const handleDownloadAttachment = async (att) => {
+    try {
+      const res = await api.get(`/tasks/${selectedTask.id}/attachments/${att.id}/download`, {
+        responseType: 'blob',
+      });
+      const blobUrl = URL.createObjectURL(res.data);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = att.fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(blobUrl);
+    } catch {
+      setAttachmentError('Không thể tải xuống tệp đính kèm.');
+    }
+  };
+
+  const handleDeleteAttachment = async (attId) => {
+    try {
+      await api.delete(`/tasks/${selectedTask.id}/attachments/${attId}`);
+      setAttachments((prev) => prev.filter((a) => a.id !== attId));
+    } catch {
+      setAttachmentError('Không thể xóa tệp đính kèm.');
+    }
+  };
 
   const subList = selectedTask.subTasks || [];
   const doneCount = subList.filter((s) => s.status === 4).length;
@@ -147,6 +227,65 @@ export default function TaskDetailModal({
                   </ul>
                 )}
               </div>
+            </div>
+
+            <div className="attachments-section">
+              <div className="attachments-header">
+                <h3>
+                  <AttachFileOutlinedIcon fontSize="small" />
+                  <span>Tệp Đính Kèm ({attachments.length})</span>
+                </h3>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  style={{ display: 'none' }}
+                  onChange={handleUploadAttachment}
+                />
+                <button
+                  type="button"
+                  className="btn-upload-attachment"
+                  disabled={uploadingFile}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <AttachFileOutlinedIcon style={{ fontSize: 15 }} />
+                  <span>{uploadingFile ? 'Đang tải lên...' : '+ Đính kèm tệp'}</span>
+                </button>
+              </div>
+
+              {attachmentError && <p className="ai-error-text">{attachmentError}</p>}
+
+              {attachments.length === 0 ? (
+                <p className="attachments-empty">Chưa có tệp đính kèm nào (hỗ trợ PDF, ảnh, Word, Excel, ZIP tối đa 10 MB).</p>
+              ) : (
+                <div className="attachments-list">
+                  {attachments.map((att) => (
+                    <div key={att.id} className="attachment-item">
+                      <div className="attachment-info">
+                        <strong title={att.fileName}>{att.fileName}</strong>
+                        <span>{formatFileSize(att.fileSizeBytes)} · {att.uploadedByName}</span>
+                      </div>
+                      <div className="attachment-actions">
+                        <button
+                          type="button"
+                          className="btn-att-action"
+                          title="Tải xuống"
+                          onClick={() => handleDownloadAttachment(att)}
+                        >
+                          <DownloadOutlinedIcon style={{ fontSize: 16 }} />
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-att-action is-danger"
+                          title="Xóa tệp"
+                          onClick={() => handleDeleteAttachment(att.id)}
+                        >
+                          <DeleteOutlineOutlinedIcon style={{ fontSize: 16 }} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="comments-section">

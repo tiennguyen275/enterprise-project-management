@@ -13,7 +13,9 @@ public interface IProjectService
     Task<ProjectResponseDto> UpdateProjectAsync(Guid projectId, UpdateProjectRequestDto request, CancellationToken cancellationToken = default);
     Task DeleteProjectAsync(Guid projectId, CancellationToken cancellationToken = default);
     Task<ProjectMemberDto> AddMemberAsync(Guid projectId, string email, ProjectRole role, CancellationToken cancellationToken = default);
+    Task RemoveMemberAsync(Guid projectId, Guid memberUserId, Guid requesterUserId, CancellationToken cancellationToken = default);
     Task<bool> CanUserAccessProjectAsync(Guid projectId, Guid userId, CancellationToken cancellationToken = default);
+    Task<bool> CanUserManageProjectAsync(Guid projectId, Guid userId, CancellationToken cancellationToken = default);
     Task<ProjectAnalyticsDto> GetProjectAnalyticsAsync(Guid projectId, CancellationToken cancellationToken = default);
 }
 
@@ -259,6 +261,37 @@ public class ProjectService : IProjectService
 
         var memberships = await _memberRepository.FindAsync(m => m.ProjectId == projectId && m.UserId == userId, cancellationToken);
         return memberships.Any();
+    }
+
+    public async Task<bool> CanUserManageProjectAsync(Guid projectId, Guid userId, CancellationToken cancellationToken = default)
+    {
+        var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
+        if (user == null || !user.IsActive) return false;
+        if (user.SystemRole == SystemRole.Admin) return true;
+
+        var memberships = await _memberRepository.FindAsync(m => m.ProjectId == projectId && m.UserId == userId, cancellationToken);
+        return memberships.Any(m => m.Role == ProjectRole.Owner || m.Role == ProjectRole.ProjectManager);
+    }
+
+    public async Task RemoveMemberAsync(Guid projectId, Guid memberUserId, Guid requesterUserId, CancellationToken cancellationToken = default)
+    {
+        var canManage = await CanUserManageProjectAsync(projectId, requesterUserId, cancellationToken);
+        if (!canManage)
+        {
+            throw new UnauthorizedAccessException("Chỉ Quản trị viên hoặc Quản lý dự án mới có quyền gỡ thành viên.");
+        }
+
+        var memberships = await _memberRepository.FindAsync(m => m.ProjectId == projectId && m.UserId == memberUserId, cancellationToken);
+        var target = memberships.FirstOrDefault()
+            ?? throw new KeyNotFoundException("Thành viên không thuộc dự án này.");
+
+        if (target.Role == ProjectRole.Owner)
+        {
+            throw new InvalidOperationException("Không thể gỡ Chủ sở hữu (Owner) khỏi dự án.");
+        }
+
+        await _memberRepository.DeleteAsync(target, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<ProjectAnalyticsDto> GetProjectAnalyticsAsync(Guid projectId, CancellationToken cancellationToken = default)

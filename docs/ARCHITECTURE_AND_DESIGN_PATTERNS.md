@@ -510,3 +510,9 @@ Mô hình mặc định là `gemini-2.5-flash`, đổi qua mục `Gemini:Model`.
 - **Realtime Notification Center**: Bảng `UserNotifications`, `NotificationsController` và `NotificationService` đẩy sự kiện `ReceiveUserNotification` trực tiếp tới nhóm SignalR cá nhân `user-{userId}` trong `ProjectHub` khi có giao việc, bình luận mới hoặc lời mời tham gia dự án.
 - **Activity / Audit Log**: Bảng `ProjectActivityLogs` và `ActivityLogService` (`GET /api/projects/{id}/activities`) tự động ghi nhận dòng thời gian các thao tác quan trọng trong dự án kèm Avatar và thời điểm thực hiện.
 - **Xuất Báo Cáo (`exportReport.js`)**: Hỗ trợ xuất trực tiếp danh sách công việc & tiến độ đường găng CPM ra **Excel (`.csv` UTF-8 BOM)** và **In Báo cáo Tổng hợp (PDF)** ngay từ tab Analytics.
+
+
+### 23.5. Đính Kèm Tệp Trong Công Việc & Quản Trị Dự Án Đầy Đủ (CRUD)
+- **Tệp Đính Kèm (`TaskAttachment` & `TaskAttachmentService`)**: Hỗ trợ tải lên/tải xuống/xóa tệp (PDF, ảnh, Word, Excel, PowerPoint, TXT, CSV, ZIP tối đa 10 MB) với kiểm tra phân quyền dự án (`CanUserAccessProjectAsync`), lưu tên tệp an toàn theo GUID chống Path Traversal và gắn header `X-Content-Type-Options: nosniff`.
+- **Quản Trị Dự Án & Thành Viên (`ProjectSettingsModal` & `RemoveMemberAsync`)**: Cho phép Quản trị viên/PM cập nhật thông tin dự án, xóa dự án và gỡ thành viên không phải Owner kèm bảo vệ RBAC 403 và ghi Audit Log.
+- **Kiểm Thử Tự Động (`EnterpriseProjectManagement.Tests`)**: Bộ xUnit test xác minh thuật toán CPM + DFS Cycle Detection, phân quyền RBAC 2 tầng, bảo vệ Audit Log IDOR, tìm kiếm tiếng Việt không dấu, gỡ thành viên và lọc định dạng tệp đính kèm.
