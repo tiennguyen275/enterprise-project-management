@@ -3,4 +3,5 @@
   <Project Path="EnterpriseProjectManagement.Application/EnterpriseProjectManagement.Application.csproj" />
   <Project Path="EnterpriseProjectManagement.Domain/EnterpriseProjectManagement.Domain.csproj" />
   <Project Path="EnterpriseProjectManagement.Infrastructure/EnterpriseProjectManagement.Infrastructure.csproj" />
+  <Project Path="EnterpriseProjectManagement.Tests/EnterpriseProjectManagement.Tests.csproj" />
 </Solution>

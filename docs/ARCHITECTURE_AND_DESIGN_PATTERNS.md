@@ -77,8 +77,442 @@ Khi thầy cô hỏi: *"Em đã áp dụng SOLID như thế nào trong dự án?
 2. **Project**: Dự án, mã dự án (`Code`), ngày bắt đầu/kết thúc, trạng thái.
 3. **ProjectMember**: Bảng liên kết nhiều - nhiều giữa `User` và `Project`, gắn kèm vai trò (`Owner`, `ProjectManager`, `Member`, `Viewer`).
 4. **ProjectTask**: Công việc cụ thể:
-   - `TaskCode`: Mã task sinh tự động (kế thừa từ bài toán thực tế của Talgent, ví dụ: `PRJ-101`).
+   - `TaskCode`: Mã task sinh tự động (ví dụ: `PRJ-101`).
    - Phân cấp `ParentTaskId` và `SubTasks` (Task cha và danh sách Task con).
    - Tiến độ (`Todo`, `InProgress`, `InReview`, `Done`, `Blocked`).
    - Độ ưu tiên (`Low`, `Medium`, `High`, `Urgent`).
 5. **TaskComment**: Bình luận, thảo luận trực tiếp trên từng Task.
+
+
+
+---
+
+## 5. Quy Trình Phân Nhánh Git (Git Flow Workflow)
+
+Dự án áp dụng quy chuẩn Git Flow để theo dõi tiến trình và quản lý lịch sử commit minh bạch:
+
+```text
+main (hoặc master)  ──────────────────────────────────────────● (Bản phát hành ổn định)
+                      ▲                                      ▲
+                      │                                      │ merge khi hoàn tất release
+dev                   ●──────────●──────────●────────────────● (Nhánh phát triển tích hợp)
+                                  ▲          ▲
+                     feature/...  ●──────────┘ merge via PR/rebase
+```
+
+### Quy tắc làm việc:
+1. **`main` (hoặc `master`)**: Nhánh sản phẩm hoàn thiện, chỉ merge khi tính năng đã được kiểm thử đầy đủ và sẵn sàng báo cáo/public.
+2. **`dev`**: Nhánh trung tâm cho toàn bộ quá trình phát triển (development). Tất cả các tính năng hoàn thành sẽ được merge về đây.
+3. **`feature/<tên-chức-năng>`**: Mỗi tính năng, module hoặc tầng kiến trúc sẽ tách thành 1 branch riêng từ `dev`:
+   - Ví dụ: `feature/infrastructure-ef-core`, `feature/auth-jwt`, `feature/project-crud`, `feature/frontend-dashboard`...
+   - Sau khi hoàn thành và test xong trên feature branch, sẽ merge về `dev`.
+
+
+---
+
+## 6. Chi tiết Tầng Hạ Tầng (Infrastructure) & Entity Framework Core
+
+Tầng `Infrastructure` giải quyết các bài toán kỹ thuật cụ thể mà tầng `Domain` và `Application` không quan tâm:
+
+### 1. Cấu hình DbContext (`ApplicationDbContext.cs`)
+- **Global Query Filter (Soft Delete)**:
+  ```csharp
+  modelBuilder.Entity<ProjectTask>().HasQueryFilter(e => !e.IsDeleted);
+  ```
+  *Ý nghĩa:* Mọi câu lệnh LINQ như `_context.ProjectTasks.ToList()` đều tự động gắn thêm điều kiện `WHERE IsDeleted = 0`. Lập trình viên không lo vô tình lấy phải dữ liệu đã bị xóa.
+- **Fluent API Relationships**:
+  - `Project` 1 - N `ProjectMember` (Cascade Delete khi xóa hẳn project).
+  - `User` 1 - N `ProjectMember` (Restrict Delete để tránh xóa nhầm user kéo theo mất dữ liệu lịch sử).
+  - `ProjectTask` Self-referencing: Một task có thể trỏ tới `ParentTaskId` và chứa danh sách `SubTasks`.
+  - `ChangeTracker Audit`: Tự động điền ngày giờ `UpdatedAt` khi bất kỳ entity nào bị cập nhật.
+
+### 2. Triển khai Generic Repository (`Repository<T>`)
+- Tách biệt logic truy xuất Entity Framework:
+  - `GetByIdAsync`, `GetAllAsync`, `FindAsync` (dùng `AsNoTracking()` để tăng tốc độ truy vấn chỉ đọc).
+  - `DeleteAsync`: Thực hiện Soft Delete (`entity.IsDeleted = true`).
+
+### 3. Dependency Injection mở rộng (`DependencyInjection.cs`)
+- Đăng ký `AddInfrastructureServices` gọn gàng:
+  - `services.AddScoped(typeof(IRepository<>), typeof(Repository<>));`
+  - `services.AddScoped<IUnitOfWork, UnitOfWork>();`
+  - Controller hoặc Service chỉ cần tiêm `IRepository<ProjectTask>` qua Constructor.
+
+
+---
+
+## 7. Chi tiết Phân Hệ Xác Thực & Phân Quyền (Auth & JWT)
+
+Được triển khai trên nhánh `feature/auth-jwt` và tích hợp vào `dev`:
+
+### 1. Luồng hoạt động (Workflow):
+1. **Đăng ký (`POST /api/auth/register`)**:
+   - Nhận `RegisterRequestDto(Email, Password, FullName)`.
+   - Kiểm tra Email có bị trùng hay không qua `_userRepository.FindAsync(...)`.
+   - Băm mật khẩu bằng thuật toán công nghiệp **BCrypt** (`BCrypt.Net.BCrypt.HashPassword`). Tuyệt đối không lưu mật khẩu dạng plain text.
+   - Lưu `User` vào Database và cấp phát ngay JWT Token.
+2. **Đăng nhập (`POST /api/auth/login`)**:
+   - Nhận `LoginRequestDto(Email, Password)`.
+   - Tìm user theo Email, kiểm tra cờ `IsActive` (chặn tài khoản bị khóa).
+   - Xác thực mật khẩu qua `BCrypt.Net.BCrypt.Verify`.
+   - Cấp phát JWT Token có hạn sử dụng (7 ngày).
+
+### 2. Cấu trúc JWT Token:
+- **Header**: Thuật toán mã hóa `HmacSha256`.
+- **Payload (Claims)**:
+  - `sub`: UserId (dạng GUID).
+  - `email`: Địa chỉ email người dùng.
+  - `name`: Tên đầy đủ hiển thị.
+  - `jti`: Mã định danh token ngẫu nhiên.
+- **Middleware Authentication & Authorization**:
+  - `builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)...`
+  - Đảm bảo các Controller sau này chỉ cần gắn attribute `[Authorize]` là tự động bảo vệ endpoint, từ chối request không có hoặc sai Token (`401 Unauthorized`).
+
+
+---
+
+## 8. Chi tiết Phân Hệ Quản Lý Dự Án & Công Việc (Project & Task Management)
+
+Được triển khai trên nhánh `feature/project-task-management`:
+
+### 1. Phân hệ Dự án (`ProjectsController` & `ProjectService`)
+- `GET /api/projects`: Lấy toàn bộ danh sách dự án mà người dùng hiện tại tham gia kèm tỷ lệ hoàn thành công việc (`TotalTasks`, `CompletedTasks`).
+- `GET /api/projects/{id}`: Xem chi tiết dự án, danh sách thành viên và vai trò (`Owner`, `ProjectManager`, `Member`, `Viewer`).
+- `POST /api/projects`: Tạo dự án mới, tự động gán người tạo làm `Owner`.
+- `PUT /api/projects/{id}` & `DELETE /api/projects/{id}`: Cập nhật và xóa mềm (Soft Delete).
+- `POST /api/projects/{id}/members`: Mời thêm thành viên vào dự án.
+
+### 2. Phân hệ Công việc (`TasksController` & `TaskService`)
+- `GET /api/tasks/project/{projectId}`: Lấy danh sách công việc của dự án theo dạng cây (Gốc và Subtasks).
+- `POST /api/tasks`: 
+  - **Tự động sinh mã Task (`TaskCode`)**: Dựa trên mã dự án (ví dụ `PRJ-1`, `PRJ-2`).
+  - Hỗ trợ gán người phụ trách (`AssigneeId`), hạn hoàn thành (`DueDate`), số giờ ước lượng (`EstimatedHours`).
+  - Hỗ trợ tạo Subtask bằng cách truyền `ParentTaskId`.
+- `PUT /api/tasks/{id}`: Cập nhật trạng thái (`Todo`, `InProgress`, `InReview`, `Done`), độ ưu tiên (`Low`, `Medium`, `High`, `Urgent`), số giờ thực tế (`ActualHours`).
+- `POST /api/tasks/{id}/comments`: Thảo luận trao đổi trực tiếp trên từng Task.
+- **Bảo mật**: Mọi API đều yêu cầu Header `Authorization: Bearer <token>`, tự động lấy `UserId` từ Claims để phân quyền.
+
+
+---
+
+## 9. Chi tiết Giao Diện Người Dùng (Frontend ReactJS + Vite)
+
+Được triển khai trên nhánh `feature/frontend-auth-and-dashboard`:
+
+### 1. Kiến trúc Client SPA (Single Page Application)
+- **Công nghệ**: ReactJS thuần (JavaScript JSX, không dùng TypeScript giúp mã nguồn nhẹ và dễ tiếp cận), Vite bundler.
+- **Quản lý Định tuyến (Routing)**: `react-router-dom` v7 với cơ chế `ProtectedRoute` bảo vệ các trang Dashboard, tự động điều hướng người dùng chưa đăng nhập về `/login`.
+- **Dịch vụ mạng (`api.js`)**:
+  - Tích hợp **Axios Interceptors**:
+    - Request: Tự động trích xuất Token từ `localStorage` và gắn Header `Authorization: Bearer <token>`.
+    - Response: Tự động bắt mã lỗi `401 Unauthorized` khi Token hết hạn để xóa phiên và chuyển hướng người dùng đăng nhập lại.
+- **Trạng thái Xác thực (`AuthContext.jsx`)**:
+  - Cung cấp hook `useAuth()` cho toàn bộ cây component để truy xuất thông tin `user`, hàm `login()`, `register()`, `logout()`.
+
+### 2. Các trang màn hình chính:
+- **Trang Đăng Nhập (`Login.jsx`)** & **Đăng Ký (`Register.jsx`)**: Form hiện đại với icon trực quan, thông báo lỗi validation chi tiết.
+- **Trang Không Gian Làm Việc (`Dashboard.jsx`)**:
+  - Thống kê tỷ lệ hoàn thành công việc theo từng dự án dưới dạng Progress Bar trực quan.
+  - Modal tạo mới dự án nhanh với mã dự án viết hoa tự động (`PRJ`, `PORTAL`).
+  - Thẻ thông tin dự án hiển thị trạng thái và số lượng công việc hoàn thành.
+
+
+---
+
+## 10. Chi tiết Bảng Kanban & Tương Tác Công Việc (Kanban Board & Task Detail)
+
+Được triển khai trên nhánh `feature/project-details-and-kanban`:
+
+### 1. Luồng Bảng Kanban Dự Án (`ProjectDetail.jsx`)
+- Hiển thị theo 4 cột tiến độ chuẩn Agile/Scrum:
+  - **Cần làm (Todo)**
+  - **Đang làm (In Progress)**
+  - **Chờ duyệt (In Review)**
+  - **Hoàn thành (Done)**
+- Mỗi thẻ công việc (Task Card) hiển thị:
+  - Mã công việc sinh tự động (`TaskCode`: ví dụ `PRJ-1`).
+  - Huy hiệu độ ưu tiên (`Thấp`, `Trung bình`, `Cao`, `Khẩn cấp`).
+  - Hạn hoàn thành (`DueDate`).
+  - Hộp chọn nhanh trạng thái (Status Dropdown) cho phép cập nhật tiến độ công việc ngay lập tức trên UI và gọi API đồng bộ xuống Database.
+
+### 2. Chi tiết Công Việc & Thảo Luận Trao Đổi
+- Nhấp vào bất kỳ thẻ công việc nào sẽ mở modal chi tiết:
+  - Xem mô tả đầy đủ.
+  - Phân hệ **Thảo luận (Comments)** thời gian thực: Cho phép thành viên trong dự án trao đổi, ghi chú kết quả công việc, lưu lại dấu thời gian và người bình luận.
+
+
+---
+
+## 11. Phân Hệ Thống Kê Hiệu Suất & Phân Bổ Tải (Analytics & Workload Allocation)
+
+Nghiệp vụ thống kê và phân bổ tải công việc cho các thành viên trong dự án:
+
+### 1. Thuật toán Phân Bổ Tải (`AllocateTaskStatistic`)
+- **Tỷ lệ hoàn thành dự án (`CompletionRate`)**: 
+  $$\text{CompletionRate} = \frac{\text{DoneTasks}}{\text{TotalTasks}} \times 100\%$$
+- **Tỷ lệ phân bổ công việc theo từng thành viên (`AllocationPercentage`)**:
+  $$\text{AllocationPercentage} = \frac{\text{MemberTotalTasks}}{\text{ProjectTotalTasks}} \times 100\%$$
+- Thước đo này giúp Ban Quản lý Dự án (PM) đánh giá trực quan xem thành viên nào đang bị quá tải (overload) hoặc ai đang có ít việc để cân đối lại nhân lực.
+
+### 2. Quản lý Đội Ngũ & Mời Thành Viên (`AddMember`)
+- Hỗ trợ nhập Email để tìm kiếm người dùng và gán quyền trực tiếp vào dự án với các vai trò:
+  - `Project Manager`: Quản lý toàn quyền dự án.
+  - `Member`: Thành viên thực thi công việc.
+  - `Viewer`: Khách hàng hoặc đối tác theo dõi tiến độ.
+
+
+---
+
+## 12. Phân Hệ Biên Bản Cuộc Họp & Phân Công Hành Động (Meeting Notes & Action Items)
+
+Nghiệp vụ quản lý biên bản cuộc họp và hạng mục hành động:
+
+### 1. Ý nghĩa Nghiệp vụ
+- Trong môi trường doanh nghiệp, các buổi họp giao ban / Sprint Review / Daily Standup đều cần lưu lại biên bản:
+  - **Chủ đề cuộc họp (`Title`)**: Xác định mục tiêu buổi họp.
+  - **Ngày họp (`MeetingDate`) & Người tham dự (`Attendees`)**: Truy vết thành phần tham gia.
+  - **Nội dung thảo luận & Quyết định (`Content`)**: Tóm tắt kết quả thống nhất.
+  - **Hạng mục hành động (`ActionItems`)**: Giao việc cụ thể (Ai làm gì, trước deadline nào) để sau đó chuyển thành các Tasks trên bảng Kanban.
+
+### 2. Thiết kế Kiến trúc
+- Entity `MeetingNote.cs` kế thừa `BaseEntity` (có Soft Delete tự động).
+- `MeetingNoteService.cs` cung cấp CRUD độc lập qua `IMeetingNoteService`.
+- `MeetingNotesController.cs` bảo vệ toàn diện với `[Authorize]`.
+- Frontend tích hợp thành một Tab độc lập `Biên Bản Cuộc Họp` trên màn hình dự án.
+
+
+---
+
+## 13. Tương Tác Kéo Thả Trực Quan (HTML5 Drag and Drop Kanban)
+
+Được triển khai trên nhánh `feature/drag-and-drop-kanban`:
+
+### 1. Kỹ thuật Triển khai (HTML5 Drag and Drop API)
+- **Tối ưu hóa không phụ thuộc thư viện nặng**: Sử dụng trực tiếp API `drag & drop` gốc của trình duyệt (HTML5 Drag and Drop), không cần cài đặt thêm gói npm bên ngoài, giúp ứng dụng nhẹ và mượt mà.
+- **Sự kiện Kéo Thả**:
+  - `onDragStart`: Lưu `taskId` vào `dataTransfer`.
+  - `onDragOver` & `onDragLeave`: Cung cấp phản hồi thị giác (Visual feedback) viền xanh dashed (`column-drag-over`) khi rê chuột qua cột.
+  - `onDrop`: Lấy `colId` đích, cập nhật giao diện lập tức (Optimistic UI update) và gọi API `PUT /api/tasks/{id}` đồng bộ xuống cơ sở dữ liệu.
+
+
+---
+
+## 14. Tích Hợp Hệ Thống Icon Chuẩn Doanh Nghiệp (Material UI Icons)
+
+Được triển khai trên nhánh `feature/mui-icons-integration`:
+
+### 1. Lựa chọn Công nghệ: Google Material Design (MUI) thay vì Bootstrap
+- So với Bootstrap (thiên về các lớp CSS tĩnh), **MUI (Material UI)** là thư viện hàng đầu trong hệ sinh thái React:
+  - Cung cấp component React dạng SVG native: `@mui/icons-material`.
+  - Hỗ trợ tùy biến kích thước và màu sắc linh hoạt qua props: `fontSize="small"`, `color="primary"`, `color="success"`.
+  - Giúp giao diện ứng dụng mang phong cách hiện đại của các sản phẩm Google / Enterprise Dashboard.
+
+### 2. Các Icon Được Tích Hợp Xuyên Suốt:
+- **Xác thực**: `LoginIcon`, `PersonAddOutlinedIcon`, `LockOutlinedIcon`, `EmailOutlinedIcon`.
+- **Dự án & Không gian làm việc**: `FolderSpecialOutlinedIcon`, `AddIcon`, `CheckCircleOutlineOutlinedIcon`, `CalendarMonthOutlinedIcon`.
+- **Kanban & Công việc**: `ViewKanbanOutlinedIcon`, `DragIndicatorIcon`, `AccessTimeIcon`, `ChatBubbleOutlineOutlinedIcon`.
+- **Cộng tác & Biên bản họp**: `DescriptionOutlinedIcon`, `PeopleAltOutlinedIcon`, `PersonAddAlt1OutlinedIcon`, `DeleteOutlineOutlinedIcon`.
+
+---
+
+## 15. Kiến Trúc SCSS Module Hóa (7-1 Pattern) & Tối Ưu Trải Nghiệm Giao Diện (UI/UX)
+
+### 15.1. Bối cảnh & Vấn đề giải quyết
+1. **Lỗi hiển thị độ tương phản (Low Contrast / White on White)**:
+   - Trước đây do kế thừa cấu hình mặc định `@media (prefers-color-scheme: dark)` trong Vite `index.css`, các tiêu đề `h1, h2, h3` bị gán màu `--text-h: #f3f4f6` (màu trắng ngà), dẫn tới hiện tượng chữ bị "chìm" không nhìn thấy trên nền sáng.
+   - Bố cục màn hình `#root` bị giới hạn cứng ở `1126px` căn giữa khiến không gian làm việc bị thu hẹp bất hợp lý.
+2. **Cấu trúc SCSS nguyên khối (Monolithic CSS)**:
+   - Dồn toàn bộ hàng trăm dòng CSS vào `App.css` hoặc `App.scss` duy nhất gây khó khăn trong việc mở rộng, bảo trì và cô lập phạm vi kiểu dáng.
+
+### 15.2. Cấu trúc thư mục Modular SCSS trong `frontend/src/assets/styles/`
+Dự án áp dụng mô hình chuẩn công nghiệp chia nhỏ các module SCSS:
+```
+frontend/src/assets/styles/
+├── _variables.scss      # Hệ thống Design Tokens: Palette màu Slate/Blue, typography, shadows, border-radius
+├── _reset.scss          # Full CSS Reset, căn chỉnh #root 100% width, ép màu heading độ tương phản cao (#0f172a)
+├── _components.scss     # Nút bấm (.btn-primary, .btn-secondary), Forms, Badges, Modals (.modal-backdrop), Alerts
+├── _auth.scss           # Giao diện Đăng nhập & Đăng ký (Card căn giữa, input nền trắng, autocomplete fix)
+├── _dashboard.scss      # Không gian làm việc, Navbar, lưới thẻ dự án (Project Cards), thanh tiến độ hoàn thành
+├── _kanban.scss         # Bảng Kanban 4 cột, hiệu ứng kéo thả (.column-drag-over), thẻ công việc, thẻ ưu tiên
+├── _meeting_notes.scss  # Nhật ký cuộc họp, thẻ biên bản, danh sách action items
+├── _analytics.scss      # Thống kê hiệu suất KPI, bảng phân bổ tải thành viên (Workload Allocation)
+├── _discussion.scss     # Modal chi tiết task, luồng bình luận thảo luận thời gian thực, input gửi phản hồi
+└── main.scss            # Tệp điều phối tập trung import toàn bộ các thành phần
+```
+
+
+### 15.3. Giá trị đạt được
+- **Độ tương phản chữ rõ ràng trên nền sáng**: Tiêu đề luôn hiển thị rõ nét với màu `#0f172a`, mô tả và ngày tháng phân cấp rõ ràng bằng `#475569` và `#64748b`.
+- **Hiệu năng biên dịch**: Vite Sass biên dịch trực tiếp toàn bộ hệ thống SCSS chỉ trong ~500ms, tệp build CSS nén gzip chỉ còn ~4.2 kB.
+
+---
+
+## 16. Phân Hệ Không Gian Làm Việc Cá Nhân & Quản Lý Công Việc Của Tôi (Personal Workspace & My Tasks)
+
+### 16.1. Nghiệp vụ Quản lý Công việc Cá nhân
+- Trong các nền tảng quản lý dự án doanh nghiệp lớn, người dùng không chỉ xem danh sách dự án mà cần một trang cá nhân tập trung (**My Tasks**) để theo dõi tất cả đầu việc được phân công trên nhiều dự án khác nhau.
+- Các yêu cầu cốt lõi được kế thừa:
+  1. **Tập trung hóa công việc**: Tự động gom toàn bộ các công việc gán cho tài khoản đăng nhập hiện tại từ mọi dự án mà thành viên tham gia.
+  2. **Bộ lọc đa chiều theo tiến trình**:
+     - *Hôm nay (Due Today)*: Các task có hạn chót trong ngày.
+     - *Quá hạn (Overdue)*: Các task chưa xong có `DueDate < Today`, hiển thị cảnh báo đỏ nổi bật.
+     - *Đang thực hiện (In Progress)* & *Đã xong (Completed)*.
+  3. **Cập nhật nhanh trạng thái (Quick Transition)**: Thay đổi trạng thái công việc trực tiếp từ màn hình cá nhân mà không cần tìm mở từng dự án riêng lẻ.
+  4. **Tìm kiếm & Lọc theo Dự án**: Hỗ trợ tìm kiếm theo từ khóa hoặc chọn xem công việc của một dự án nhất định.
+  5. **Chỉ định người thực hiện khi tạo Task**: Khi tạo task trong bảng Kanban, cho phép gán trực tiếp thành viên trong dự án làm Assignee.
+
+### 16.2. Thiết kế API Backend
+- **`GET /api/tasks/my-tasks`**: Trả về danh sách `MyTaskResponseDto` kèm mã dự án (`ProjectCode`), tên dự án (`ProjectName`), số lượng thảo luận (`CommentCount`) và cờ cảnh báo quá hạn (`IsOverdue`). Sắp xếp tự động ưu tiên: Quá hạn -> Hạn gần nhất -> Độ ưu tiên cao.
+- **`PATCH /api/tasks/{id}/assign`**: API chỉ định hoặc chuyển giao người thực hiện cho công việc.
+
+---
+
+## 17. Chuẩn Hóa Hệ Thống Thiết Kế Giao Diện (`DESIGN.md` & Quy Tắc SCSS)
+
+### 17.1. Tổ chức bộ quy tắc thiết kế đồng nhất
+Để giữ giao diện thống nhất giữa các màn hình, dự án quy định bảng màu, cỡ chữ và khoảng cách trong tài liệu thiết kế [`DESIGN.md`](file:///E:/EnterpriseProjectManagement/DESIGN.md) và file quy tắc [`.agent/rules/impeccable-ui.md`](file:///E:/EnterpriseProjectManagement/.agent/rules/impeccable-ui.md):
+
+1. **Tài liệu hóa biến thiết kế (`DESIGN.md`):** Quy định thống nhất bảng màu Slate/Blue, cỡ chữ, khoảng cách lề (`8px grid`) và bán kính bo góc trong `_variables.scss`.
+2. **Kiểu chữ & Số liệu thống kê:** Sử dụng màu chữ đậm `#0f172a` cho toàn bộ tiêu đề và số liệu, kết hợp `font-variant-numeric: tabular-nums` giúp các con số phần trăm và thống kê thẳng hàng.
+3. **Phân biệt màu sắc theo mức độ ưu tiên:**
+   - Mỗi thẻ dự án (`.project-card`) có viền màu xanh phía trên (`border-top: 3.5px solid #2563eb`).
+   - Mỗi thẻ công việc trên bảng Kanban (`.kanban-task-card`) và danh sách cá nhân (`.my-task-row`) có **viền trái đổi màu theo độ ưu tiên (`priority-border-1..4`)** (*Thấp*, *Trung bình*, *Cao*, *Khẩn cấp*).
+4. **Chống tràn chữ và vỡ khung:** Áp dụng `-webkit-line-clamp` và `line-clamp` cho các tiêu đề, mô tả dài và thiết kế trạng thái trống (Empty States) cho tất cả các tab.
+
+---
+
+## 18. Phân Hệ Báo Cáo Sức Khỏe Dự Án (R/A/G Health Check) & Quản Trị Công Việc Chuyên Sâu (WBS Subtasks & Time Tracking)
+
+### 18.1. Báo cáo Trạng thái & Chẩn đoán Sức khỏe Dự án (`StatusReportsController` & `StatusReportService`)
+- **Mô hình đánh giá R/A/G (Red - Amber - Green):**
+  - `OnTrack (1 - Xanh)`: Dự án đi đúng tiến độ, không có công việc bị quá hạn.
+  - `AtRisk (2 - Vàng)`: Có công việc bắt đầu trễ hạn hoặc dự án còn dưới 7 ngày đến ngày kết thúc nhưng tiến độ chưa đạt 80%.
+  - `Delayed (3 - Đỏ)`: Tỷ lệ công việc quá hạn >= 25% (hoặc từ 3 công việc quá hạn trở lên), hoặc dự án đã quá hạn kết thúc dự kiến.
+- **Lưu trữ Snapshot tiến độ định kỳ (`ProjectStatusReport`):**
+  - Mỗi kỳ báo cáo lưu lại số liệu tại thời điểm lập (`TotalTasksSnapshot`, `CompletedTasksSnapshot`, `OverdueTasksSnapshot`, `CompletionRateSnapshot`) kèm 3 nội dung: *Kết quả đạt được*, *Kế hoạch kỳ tiếp theo*, và *Rủi ro / Vướng mắc*.
+- **Kiểm tra công việc ngoài kỳ báo cáo (`HAVE_TASK_OUT_OF_RANGE`):**
+  - Cảnh báo người quản lý dự án khi có công việc phát sinh nằm ngoài khoảng thời gian kỳ báo cáo đã chọn và hỗ trợ xác nhận 2 bước.
+
+### 18.2. Phân rã Công việc Con (WBS Subtasks) & Theo dõi Thời gian (`EstimatedHours` / `ActualHours`)
+- **Quan hệ tự tham chiếu (`ParentTaskId` -> `SubTasks`):**
+  - Cho phép chia nhỏ một công việc lớn trên bảng Kanban thành danh sách các công việc con (Checklist Subtasks), tự động tính phần trăm hoàn thành việc con ngay trong modal chi tiết và hiển thị huy hiệu `X/Y việc con` trên thẻ Kanban.
+- **Theo dõi giờ làm việc (`EstimatedHours` vs `ActualHours`):**
+  - Cho phép nhập số giờ ước lượng và cập nhật số giờ thực tế thực hiện, trực quan hóa bằng thanh so sánh định mức thời gian (cảnh báo đỏ khi giờ thực tế vượt quá giờ ước lượng).
+- **Bộ lọc nhanh trên bảng Kanban:**
+  - Hỗ trợ tìm kiếm tức thời theo mã công việc (`PRJ-1`), tiêu đề, lọc theo thành viên phụ trách (`Assignee`) và mức độ ưu tiên (`Priority`).
+
+---
+
+## 19. Tích Hợp Tài Liệu Hóa & Kiểm Thử API Trực Quan (Swagger UI & OpenAPI v3)
+
+### 19.1. Ý nghĩa Kỹ thuật
+- Để phục vụ quá trình phát triển độc lập giữa Frontend và Backend cũng như hỗ trợ demo kỹ thuật trước hội đồng, hệ thống tích hợp bộ công cụ tài liệu hóa API chuẩn quốc tế:
+  - **OpenAPI v3 Specification**: Tự động phân tích các Controller (Auth, Projects, Tasks, StatusReports, MeetingNotes) và sinh cấu trúc lược đồ request/response tại /swagger/v1/swagger.json và /openapi/v1.json.
+  - **Giao diện Swagger UI tương tác (/swagger)**: Cung cấp tài liệu trực quan, liệt kê đầy đủ 18 endpoints cùng tham số, mã lỗi HTTP (200 OK, 201 Created, 400 BadRequest, 401 Unauthorized, 404 NotFound).
+  - **Xác thực JWT Bearer tương tác (Nút Authorize)**: Tự động phát hiện cơ chế bảo vệ [Authorize] trên các Controller qua InferSecuritySchemes(), cho phép nhập chuỗi JWT Token để kiểm thử trực tiếp các API bảo mật trên trình duyệt mà không cần sử dụng phần mềm ngoài như Postman.
+
+
+---
+
+## 20. Trợ Lý AI Gợi Ý (Gemini) Theo Dữ Liệu Dự Án
+
+### 20.1. Thiết kế theo Clean Architecture
+- `IAiTextGenerator` (tầng Application) là cổng giao tiếp với mô hình ngôn ngữ; `GeminiTextGenerator` (tầng Infrastructure) gọi Gemini API qua `HttpClient`. Đổi nhà cung cấp AI chỉ cần viết lớp mới cài `IAiTextGenerator`, không sửa nghiệp vụ.
+- `AiAssistantService` tự dựng prompt từ dữ liệu thật của dự án (số liệu tiến độ, công việc quá hạn, điểm sức khỏe R/A/G từ `StatusReportService`), không để AI tự bịa số liệu.
+- Lỗi từ dịch vụ AI được gói thành `AiUnavailableException`, Controller trả về `503` kèm thông báo tiếng Việt thay vì làm sập request.
+
+### 20.2. Ba chức năng
+| Endpoint | Chức năng | Cần khóa API |
+| :--- | :--- | :--- |
+| `POST /api/ai/projects/{projectId}/insight` | Nhận xét tình hình dự án: đánh giá chung, rủi ro chính, việc nên làm ngay | Có |
+| `POST /api/ai/tasks/{taskId}/subtask-suggestions` | Đề xuất danh sách việc con cho một công việc, loại trùng với việc con đã có | Có |
+| `GET /api/ai/tasks/{taskId}/assignee-suggestions` | Xếp hạng thành viên theo khối lượng việc đang mở (số việc, tổng giờ ước lượng), người ít việc nhất được đề xuất đầu tiên | Không |
+
+Gợi ý người nhận việc dùng thuật toán cân bằng tải thuần, không phụ thuộc AI nên luôn hoạt động.
+
+### 20.3. Cấu hình khóa API
+Khóa không được lưu trong mã nguồn. Đặt một trong hai cách:
+- Biến môi trường: `Gemini__ApiKey=<khóa>`.
+- File `appsettings.Development.json` (đã nằm trong `.gitignore`), mục `Gemini:ApiKey`.
+
+Mô hình mặc định là `gemini-2.5-flash`, đổi qua mục `Gemini:Model`.
+
+---
+
+## 21. Giao Tiếp Thời Gian Thực (SignalR) & Phòng Trao Đổi Dự Án Tích Hợp AI
+
+### 21.1. Kiến trúc SignalR Hub & Nguyên lý Nghịch đảo Phụ thuộc (DIP)
+- **Tầng Application**: Định nghĩa abstraction `IRealtimeNotificationService` với các phương thức phát sự kiện nghiệp vụ (`NotifyProjectMessageReceivedAsync`, `NotifyTaskUpdatedAsync`, `NotifyProjectDataChangedAsync`). Các nghiệp vụ như Task hoặc Chat chỉ phụ thuộc vào interface này mà không biết đến SignalR hay WebSocket.
+- **Tầng API**: Cài đặt `ProjectHub` kế thừa từ `Microsoft.AspNetCore.SignalR.Hub` với xác thực `[Authorize]`. Cài đặt `SignalRRealtimeNotificationService` sử dụng `IHubContext<ProjectHub>` để gửi thông điệp tới đúng nhóm dự án (`Clients.Group(projectId)`).
+- **Phân nhóm (SignalR Groups)**: Mỗi dự án là một SignalR Group độc lập (`JoinProject`, `LeaveProject`). Thành viên chỉ nhận thông điệp và cập nhật của dự án đang mở, tránh rò rỉ dữ liệu chéo giữa các dự án.
+- **Xác thực WebSocket với JWT Bearer**: Trong giao thức WebSocket chuẩn, trình duyệt không gửi header `Authorization: Bearer <token>`. Hệ thống cấu hình sự kiện `OnMessageReceived` trong `JwtBearerOptions` để đọc `access_token` từ chuỗi truy vấn (query string) khi đường dẫn bắt đầu bằng `/hubs`, đảm bảo mọi kết nối thời gian thực đều được xác thực an toàn.
+
+### 21.2. Phòng Trao Đổi Dự Án & Tương Tác AI In-Room
+- **Lưu trữ bền vững (`ProjectChatMessage`)**: Mọi tin nhắn gửi trong phòng chat dự án đều được lưu vào cơ sở dữ liệu (`ProjectChatMessages`), đảm bảo toàn vẹn lịch sử trao đổi khi người dùng tải lại trang.
+- **Hỏi đáp AI trực tiếp trong phòng chat**:
+  - Khi thành viên gửi tin nhắn có chứa `@ai` hoặc bấm nút "Hỏi AI", hệ thống tự động tổng hợp ngữ cảnh thực tế của dự án (tổng số việc, hoàn thành, quá hạn) và gọi Google Gemini API.
+  - Phản hồi của AI được lưu trữ với định danh `Trợ lý AI Gemini` (`IsAiGenerated = true`) và lập tức phát sóng (broadcast) theo thời gian thực tới tất cả thành viên trong nhóm dự án.
+
+### 21.3. Đồng Bộ Trạng Thái Kanban Thời Gian Thực
+- Khi một người dùng tạo mới công việc, kéo thả chuyển trạng thái hoặc phân công lại người nhận việc, `TasksController` gửi thông báo `ReceiveTaskUpdate` qua SignalR.
+- Giao diện của tất cả các thành viên khác đang theo dõi dự án tự động cập nhật thẻ công việc trên bảng Kanban mà không cần tải lại toàn bộ trang (Zero-Refresh Live Board).
+
+
+---
+
+## 22. Lõi Thuật Toán Đường Găng (CPM - Critical Path Method) & Biểu Đồ Tiến Độ Gantt
+
+### 22.1. Mô hình Ràng Buộc Phụ Thuộc (Finish-to-Start Precedence)
+- Thực thể `TaskDependency` lưu trữ liên kết giữa `PredecessorTaskId` (công việc trước) và `SuccessorTaskId` (công việc sau) cùng thời gian trễ `LagDays`.
+- **Kiểm tra chống chu trình (Cycle Detection)**: Trước khi thêm một liên kết A -> B, hệ thống sử dụng thuật toán duyệt đồ thị theo chiều sâu (Depth-First Search - DFS) để kiểm tra xem có tồn tại đường đi từ B ngược về A hay không. Nếu có, hệ thống lập tức từ chối và cảnh báo lỗi để đảm bảo đồ thị phụ thuộc luôn là đồ thị có hướng không chu trình (DAG - Directed Acyclic Graph).
+
+### 22.2. Thuật toán Hai Lượt Tính Đường Găng (Two-Pass CPM Algorithm)
+1. **Sắp xếp Tô-pô (Topological Sort)**:
+   - Sử dụng giải thuật Kahn dựa trên bán bậc vào (In-Degree) để duyệt qua danh sách công việc theo đúng trình tự phụ thuộc hợp lệ.
+2. **Nước đi xuôi (Forward Pass)**:
+   - Xác định thời điểm sớm nhất có thể bắt đầu (ES) và kết thúc (EF):
+     $$ES_j = \max_{p \in \text{Predecessors}(j)} (EF_p + \text{Lag}_{pj})$$
+     $$EF_j = ES_j + D_j$$
+   - Tổng thời lượng hoàn thành dự án: $$T_{\text{project}} = \max_i (EF_i)$$.
+3. **Nước đi ngược (Backward Pass)**:
+   - Xác định thời điểm muộn nhất có thể hoàn thành (LF) và bắt đầu (LS) mà không làm trễ toàn bộ dự án:
+     $$LF_i = \min_{s \in \text{Successors}(i)} (LS_s - \text{Lag}_{is})$$
+     $$LS_i = LF_i - D_i$$
+4. **Độ trôi tổng thể (Total Float / Slack) & Đường găng (Critical Path)**:
+   - $$\text{Total Float}_i = LS_i - ES_i = LF_i - EF_i$$.
+   - **Công việc găng (Critical Task)**: Là những công việc có $$\text{Total Float} = 0$$. Mọi sự chậm trễ trên các công việc găng sẽ trực tiếp làm lùi ngày hoàn thành của toàn bộ dự án.
+
+### 22.3. Trực Quan Hóa Biểu Đồ Gantt (Interactive Gantt Chart)
+- Giao diện cung cấp bảng phân tích chi tiết: Thời lượng ($D$), $ES$, $EF$, $LS$, $LF$, Độ trôi ($Float$) và phân loại trực quan:
+  - Thẻ găng hiển thị viền đỏ nổi bật (Critical Gradient) với độ trôi 0 ngày.
+  - Thẻ dự trữ hiển thị thanh màu xanh tím kèm chỉ số ngày có thể trì hoãn an toàn.
+- Cho phép người dùng trực tiếp thêm/xóa các liên kết Finish-to-Start và cập nhật lại toàn bộ ma trận tiến độ ngay tức thì.
+
+
+---
+
+## 23. Hệ Sinh Thái Quản Trị Doanh Nghiệp Nâng Cao (RBAC 2 Tầng, Nhân Sự, Global Search, Thông Báo Realtime, Xuất Báo Cáo & Audit Log)
+
+### 23.1. Phân Quyền 2 Tầng (Two-Tier RBAC)
+- **Tầng hệ thống (`SystemRole`: `User = 0`, `Admin = 1`)**: Lưu trên bảng `Users` và đính kèm trong `ClaimTypes.Role` của JWT Token.
+  - **System Admin**: Có tầm nhìn toàn cảnh (Executive Oversight) trên toàn bộ dự án của doanh nghiệp và quyền quản trị nhân sự (cấp/hạ quyền Admin, khóa/mở tài khoản với cơ chế chống tự hạ quyền và kiểm tra `!admin.IsActive`).
+  - **Nhân viên (`User`)**: Chỉ truy cập các dự án được phân công trong `ProjectMembers`, bảo đảm tính cô lập dữ liệu giữa các phòng ban.
+- **Tầng dự án (`ProjectRole`)**: Giữ nguyên phân cấp `Owner`, `ProjectManager`, `Member`, `Viewer` trong phạm vi từng dự án.
+
+### 23.2. Danh Bạ Nhân Sự (`/users`), Cài Đặt Hồ Sơ (`/profile`) & Avatar Đồng Bộ
+- **Backend**: `UsersController` & `UserService` cung cấp `GET /api/users`, `GET/PUT /api/users/me`, `PATCH /api/users/{id}/role`, `PATCH /api/users/{id}/status`.
+- **Avatar xuyên suốt**: Component `UserAvatar.jsx` và `AssigneeSelect.jsx` đồng bộ ảnh đại diện trên Navbar, Danh bạ Nhân sự, cụm Avatar xếp chồng ở Dashboard, thẻ Kanban, bộ lọc người thực hiện, bình luận và Modal Chi tiết công việc bố cục 2 cột ngang.
+
+### 23.3. Tìm Kiếm Toàn Cục (`Ctrl + K`) & Tiếng Việt Không Dấu
+- `SearchController` (`GET /api/search?q=...`) và `GlobalSearchService` chuẩn hóa chuỗi Unicode (`FormD` + chuyển `đ -> d`) để tìm kiếm không dấu trên 3 nhóm (**Dự án, Công việc, Nhân sự**) đồng thời tuân thủ phân quyền RBAC.
+- Frontend cung cấp **Header 3 cột Glassmorphism** với thanh Spotlight Search trung tâm, điều hướng bàn phím (`↑ ↓ Enter Esc`), lịch sử tìm kiếm gần đây và mở thẳng chi tiết công việc qua `?taskId=`.
+
+### 23.4. Chuông Thông Báo Realtime (SignalR) & Nhật Ký Hoạt Động (Audit Log)
+- **Realtime Notification Center**: Bảng `UserNotifications`, `NotificationsController` và `NotificationService` đẩy sự kiện `ReceiveUserNotification` trực tiếp tới nhóm SignalR cá nhân `user-{userId}` trong `ProjectHub` khi có giao việc, bình luận mới hoặc lời mời tham gia dự án.
+- **Activity / Audit Log**: Bảng `ProjectActivityLogs` và `ActivityLogService` (`GET /api/projects/{id}/activities`) tự động ghi nhận dòng thời gian các thao tác quan trọng trong dự án kèm Avatar và thời điểm thực hiện.
+- **Xuất Báo Cáo (`exportReport.js`)**: Hỗ trợ xuất trực tiếp danh sách công việc & tiến độ đường găng CPM ra **Excel (`.csv` UTF-8 BOM)** và **In Báo cáo Tổng hợp (PDF)** ngay từ tab Analytics.
+
+
+### 23.5. Đính Kèm Tệp Trong Công Việc & Quản Trị Dự Án Đầy Đủ (CRUD)
+- **Tệp Đính Kèm (`TaskAttachment` & `TaskAttachmentService`)**: Hỗ trợ tải lên/tải xuống/xóa tệp (PDF, ảnh, Word, Excel, PowerPoint, TXT, CSV, ZIP tối đa 10 MB) với kiểm tra phân quyền dự án (`CanUserAccessProjectAsync`), lưu tên tệp an toàn theo GUID chống Path Traversal và gắn header `X-Content-Type-Options: nosniff`.
+- **Quản Trị Dự Án & Thành Viên (`ProjectSettingsModal` & `RemoveMemberAsync`)**: Cho phép Quản trị viên/PM cập nhật thông tin dự án, xóa dự án và gỡ thành viên không phải Owner kèm bảo vệ RBAC 403 và ghi Audit Log.
+- **Kiểm Thử Tự Động (`EnterpriseProjectManagement.Tests`)**: Bộ xUnit test xác minh thuật toán CPM + DFS Cycle Detection, phân quyền RBAC 2 tầng, bảo vệ Audit Log IDOR, tìm kiếm tiếng Việt không dấu, gỡ thành viên và lọc định dạng tệp đính kèm.

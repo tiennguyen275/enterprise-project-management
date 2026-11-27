@@ -5,7 +5,7 @@ namespace EnterpriseProjectManagement.Domain.Entities;
 
 public class ProjectTask : BaseEntity
 {
-    public string TaskCode { get; set; } = string.Empty; // e.g. "PRJ-101"
+    public string TaskCode { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
     public string? Description { get; set; }
 
@@ -16,14 +16,12 @@ public class ProjectTask : BaseEntity
     public decimal? EstimatedHours { get; set; }
     public decimal? ActualHours { get; set; }
 
-    // Foreign Keys
     public Guid ProjectId { get; set; }
     public Project Project { get; set; } = null!;
 
     public Guid? AssigneeId { get; set; }
     public User? Assignee { get; set; }
 
-    // Task phân cấp (Parent - Subtasks)
     public Guid? ParentTaskId { get; set; }
     public ProjectTask? ParentTask { get; set; }
     public ICollection<ProjectTask> SubTasks { get; set; } = new List<ProjectTask>();
