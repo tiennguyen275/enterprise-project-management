@@ -4,6 +4,7 @@ using EnterpriseProjectManagement.Application.Features.Activities.Services;
 using EnterpriseProjectManagement.Application.Features.Notifications.Services;
 using EnterpriseProjectManagement.Application.Features.Tasks.DTOs;
 using EnterpriseProjectManagement.Application.Features.Tasks.Services;
+using EnterpriseProjectManagement.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -86,13 +87,27 @@ public class TasksController : ControllerBase
             var userId = GetCurrentUserId();
             var task = await _taskService.CreateTaskAsync(userId, request, cancellationToken);
             await BroadcastTaskEventAsync(task, "created", cancellationToken);
-            await _activityLogService.LogAsync(
-                task.ProjectId,
-                userId,
-                "task_created",
-                task.TaskCode,
-                $"Tạo công việc \"{task.Title}\"",
-                cancellationToken);
+            if (task.ParentTaskId.HasValue)
+            {
+                var parent = await _taskService.GetTaskByIdAsync(task.ParentTaskId.Value, cancellationToken);
+                await _activityLogService.LogAsync(
+                    task.ProjectId,
+                    userId,
+                    "subtask_created",
+                    parent?.TaskCode ?? task.TaskCode,
+                    $"Thêm việc con [{task.TaskCode}] \"{task.Title}\"",
+                    cancellationToken);
+            }
+            else
+            {
+                await _activityLogService.LogAsync(
+                    task.ProjectId,
+                    userId,
+                    "task_created",
+                    task.TaskCode,
+                    $"Khởi tạo công việc \"{task.Title}\"",
+                    cancellationToken);
+            }
             if (task.AssigneeId.HasValue && task.AssigneeId.Value != userId)
             {
                 await _notificationService.CreateNotificationAsync(
@@ -125,13 +140,23 @@ public class TasksController : ControllerBase
             var previous = await _taskService.GetTaskByIdAsync(id, cancellationToken);
             var task = await _taskService.UpdateTaskAsync(id, request, cancellationToken);
             await BroadcastTaskEventAsync(task, "updated", cancellationToken);
-            await _activityLogService.LogAsync(
-                task.ProjectId,
-                userId,
-                "task_updated",
-                task.TaskCode,
-                $"Cập nhật công việc \"{task.Title}\" (Trạng thái: {task.Status})",
-                cancellationToken);
+
+            var targetCode = task.TaskCode;
+            if (task.ParentTaskId.HasValue)
+            {
+                var parent = await _taskService.GetTaskByIdAsync(task.ParentTaskId.Value, cancellationToken);
+                if (parent != null) targetCode = parent.TaskCode;
+                var subtaskSummary = task.Status == ProjectTaskStatus.Done
+                    ? $"Đánh dấu hoàn thành việc con [{task.TaskCode}] \"{task.Title}\""
+                    : $"Mở lại việc con [{task.TaskCode}] \"{task.Title}\"";
+                await _activityLogService.LogAsync(task.ProjectId, userId, "subtask_updated", targetCode, subtaskSummary, cancellationToken);
+            }
+            else
+            {
+                var changeDesc = BuildTaskUpdateSummary(previous, task);
+                await _activityLogService.LogAsync(task.ProjectId, userId, "task_updated", targetCode, changeDesc, cancellationToken);
+            }
+
             if (task.AssigneeId.HasValue && task.AssigneeId.Value != userId && previous?.AssigneeId != task.AssigneeId)
             {
                 await _notificationService.CreateNotificationAsync(
@@ -160,8 +185,16 @@ public class TasksController : ControllerBase
     {
         try
         {
+            var userId = GetCurrentUserId();
             var task = await _taskService.AssignTaskAsync(id, request.AssigneeId, cancellationToken);
             await BroadcastTaskEventAsync(task, "assigned", cancellationToken);
+            await _activityLogService.LogAsync(
+                task.ProjectId,
+                userId,
+                "task_assigned",
+                task.TaskCode,
+                $"Phân công người thực hiện: {task.AssigneeName ?? "Chưa chỉ định"}",
+                cancellationToken);
             return Ok(task);
         }
         catch (KeyNotFoundException ex)
@@ -173,11 +206,23 @@ public class TasksController : ControllerBase
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> DeleteTask(Guid id, CancellationToken cancellationToken)
     {
+        var userId = GetCurrentUserId();
         var existing = await _taskService.GetTaskByIdAsync(id, cancellationToken);
         await _taskService.DeleteTaskAsync(id, cancellationToken);
         if (existing != null)
         {
             await BroadcastTaskEventAsync(existing, "deleted", cancellationToken);
+            if (existing.ParentTaskId.HasValue)
+            {
+                var parent = await _taskService.GetTaskByIdAsync(existing.ParentTaskId.Value, cancellationToken);
+                await _activityLogService.LogAsync(
+                    existing.ProjectId,
+                    userId,
+                    "subtask_deleted",
+                    parent?.TaskCode ?? existing.TaskCode,
+                    $"Xóa công việc con \"{existing.Title}\"",
+                    cancellationToken);
+            }
         }
         return NoContent();
     }
@@ -222,6 +267,84 @@ public class TasksController : ControllerBase
         {
             return BadRequest(new { message = ex.Message });
         }
+    }
+
+    [HttpGet("{id:guid}/activities")]
+    public async Task<IActionResult> GetTaskActivities(Guid id, [FromQuery] int limit = 50, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            var items = await _activityLogService.GetTaskActivitiesAsync(id, userId, limit, cancellationToken);
+            return Ok(items);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
+    private static string FormatStatusLabel(ProjectTaskStatus status) => status switch
+    {
+        ProjectTaskStatus.Todo => "Cần làm (Todo)",
+        ProjectTaskStatus.InProgress => "Đang làm (In Progress)",
+        ProjectTaskStatus.InReview => "Chờ duyệt (In Review)",
+        ProjectTaskStatus.Done => "Hoàn thành (Done)",
+        _ => status.ToString()
+    };
+
+    private static string FormatPriorityLabel(TaskPriority priority) => priority switch
+    {
+        TaskPriority.Low => "Thấp",
+        TaskPriority.Medium => "Trung bình",
+        TaskPriority.High => "Cao",
+        TaskPriority.Urgent => "Khẩn cấp",
+        _ => priority.ToString()
+    };
+
+    private static string BuildTaskUpdateSummary(TaskResponseDto? previous, TaskResponseDto current)
+    {
+        if (previous == null) return $"Cập nhật công việc \"{current.Title}\"";
+
+        var changes = new List<string>();
+        if (previous.Status != current.Status)
+        {
+            changes.Add($"Đổi trạng thái: {FormatStatusLabel(previous.Status)} → {FormatStatusLabel(current.Status)}");
+        }
+        if (previous.Priority != current.Priority)
+        {
+            changes.Add($"Đổi độ ưu tiên: {FormatPriorityLabel(previous.Priority)} → {FormatPriorityLabel(current.Priority)}");
+        }
+        if (previous.AssigneeId != current.AssigneeId)
+        {
+            changes.Add($"Đổi người thực hiện: {previous.AssigneeName ?? "Chưa chỉ định"} → {current.AssigneeName ?? "Chưa chỉ định"}");
+        }
+        if (previous.DueDate?.Date != current.DueDate?.Date)
+        {
+            var oldDate = previous.DueDate.HasValue ? previous.DueDate.Value.ToString("dd/MM/yyyy") : "Chưa đặt";
+            var newDate = current.DueDate.HasValue ? current.DueDate.Value.ToString("dd/MM/yyyy") : "Chưa đặt";
+            changes.Add($"Đổi hạn hoàn thành: {oldDate} → {newDate}");
+        }
+        if (previous.EstimatedHours != current.EstimatedHours)
+        {
+            changes.Add($"Đổi giờ ước lượng: {previous.EstimatedHours ?? 0}h → {current.EstimatedHours ?? 0}h");
+        }
+        if (previous.ActualHours != current.ActualHours)
+        {
+            changes.Add($"Cập nhật giờ thực tế: {previous.ActualHours ?? 0}h → {current.ActualHours ?? 0}h");
+        }
+        if (!string.Equals(previous.Description ?? string.Empty, current.Description ?? string.Empty, StringComparison.Ordinal))
+        {
+            changes.Add("Cập nhật mô tả công việc");
+        }
+
+        return changes.Count > 0
+            ? string.Join("; ", changes)
+            : $"Lưu cập nhật công việc \"{current.Title}\"";
     }
 
     private static string GetAttachmentsRootPath()
@@ -368,6 +491,18 @@ public class TasksController : ControllerBase
             if (System.IO.File.Exists(fullPath))
             {
                 System.IO.File.Delete(fullPath);
+            }
+
+            var task = await _taskService.GetTaskByIdAsync(id, cancellationToken);
+            if (task != null)
+            {
+                await _activityLogService.LogAsync(
+                    task.ProjectId,
+                    userId,
+                    "attachment_deleted",
+                    task.TaskCode,
+                    $"Xóa tệp đính kèm khỏi \"{task.Title}\"",
+                    cancellationToken);
             }
 
             return NoContent();

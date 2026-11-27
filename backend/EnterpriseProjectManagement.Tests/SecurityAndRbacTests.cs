@@ -51,6 +51,7 @@ public class SecurityAndRbacTests
         var service = new ActivityLogService(
             new InMemoryRepository<ProjectActivityLog>(new[] { log }),
             new InMemoryRepository<ProjectMember>(new[] { membership }),
+            new InMemoryRepository<ProjectTask>(),
             new InMemoryRepository<User>(new[] { admin, member, outsider }),
             new FakeUnitOfWork());
 
@@ -138,5 +139,33 @@ public class SecurityAndRbacTests
         Assert.True(TaskAttachmentService.IsExtensionAllowed(".XLSX"));
         Assert.False(TaskAttachmentService.IsExtensionAllowed(".exe"));
         Assert.False(TaskAttachmentService.IsExtensionAllowed(".html"));
+    }
+
+    [Fact]
+    public async Task ActivityLogService_GetTaskActivities_FiltersByTaskCodeAndEnforcesRbac()
+    {
+        var member = new User { Email = "m@epms.vn", FullName = "Member", SystemRole = SystemRole.User, IsActive = true };
+        var outsider = new User { Email = "o@epms.vn", FullName = "Outsider", SystemRole = SystemRole.User, IsActive = true };
+        var projectId = Guid.NewGuid();
+        var taskA = new ProjectTask { ProjectId = projectId, TaskCode = "PRJ-1", Title = "Task A" };
+        var taskB = new ProjectTask { ProjectId = projectId, TaskCode = "PRJ-2", Title = "Task B" };
+
+        var logA = new ProjectActivityLog { ProjectId = projectId, ActorId = member.Id, ActorName = member.FullName, Action = "task_updated", TargetCode = "PRJ-1", Description = "Đổi trạng thái A" };
+        var logB = new ProjectActivityLog { ProjectId = projectId, ActorId = member.Id, ActorName = member.FullName, Action = "task_updated", TargetCode = "PRJ-2", Description = "Đổi trạng thái B" };
+
+        var service = new ActivityLogService(
+            new InMemoryRepository<ProjectActivityLog>(new[] { logA, logB }),
+            new InMemoryRepository<ProjectMember>(new[] { new ProjectMember { ProjectId = projectId, UserId = member.Id, Role = ProjectRole.Member } }),
+            new InMemoryRepository<ProjectTask>(new[] { taskA, taskB }),
+            new InMemoryRepository<User>(new[] { member, outsider }),
+            new FakeUnitOfWork());
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            service.GetTaskActivitiesAsync(taskA.Id, outsider.Id));
+
+        var taskALogs = await service.GetTaskActivitiesAsync(taskA.Id, member.Id);
+        Assert.Single(taskALogs);
+        Assert.Equal("PRJ-1", taskALogs[0].TargetCode);
+        Assert.Equal("Đổi trạng thái A", taskALogs[0].Description);
     }
 }

@@ -5,14 +5,56 @@ import AssigneeSelect from '../common/AssigneeSelect';
 import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined';
 import CloseIcon from '@mui/icons-material/Close';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlineOutlined';
-import ChatBubbleOutlineOutlinedIcon from '@mui/icons-material/ChatBubbleOutlineOutlined';
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutlineOutlined';
 import AttachFileOutlinedIcon from '@mui/icons-material/AttachFileOutlined';
+import ImageOutlinedIcon from '@mui/icons-material/ImageOutlined';
 import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined';
+import HistoryIcon from '@mui/icons-material/History';
+import SendOutlinedIcon from '@mui/icons-material/SendOutlined';
 
 function formatFileSize(bytes) {
   if (!bytes || bytes < 1024) return `${bytes || 0} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+function formatDateTime(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  const datePart = d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const timePart = d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+  return `${datePart} ${timePart}`;
+}
+
+function getActionMeta(action) {
+  switch (action) {
+    case 'task_created':
+      return { label: 'Tạo mới', tone: 'blue' };
+    case 'task_updated':
+      return { label: 'Cập nhật', tone: 'indigo' };
+    case 'task_assigned':
+      return { label: 'Phân công', tone: 'amber' };
+    case 'subtask_created':
+      return { label: 'Thêm việc con', tone: 'teal' };
+    case 'subtask_updated':
+      return { label: 'Việc con', tone: 'green' };
+    case 'subtask_deleted':
+      return { label: 'Xóa việc con', tone: 'red' };
+    case 'attachment_uploaded':
+      return { label: 'Đính kèm', tone: 'blue' };
+    case 'attachment_deleted':
+      return { label: 'Xóa tệp', tone: 'red' };
+    case 'comment_added':
+      return { label: 'Bình luận', tone: 'slate' };
+    default:
+      return { label: 'Hoạt động', tone: 'slate' };
+  }
+}
+
+function normalizeHours(val) {
+  if (val === '' || val === null || val === undefined) return null;
+  const parsed = parseFloat(val);
+  return Number.isNaN(parsed) ? null : parsed;
 }
 
 export default function TaskDetailModal({
@@ -21,8 +63,6 @@ export default function TaskDetailModal({
   columns,
   taskEditForm,
   setTaskEditForm,
-  taskSaveMsg,
-  setTaskSaveMsg,
   assigneeSuggestions,
   newSubtaskTitle,
   setNewSubtaskTitle,
@@ -33,7 +73,7 @@ export default function TaskDetailModal({
   setCommentText,
   onClose,
   onDeleteTask,
-  onSaveTaskDetail,
+  onPatchTask,
   onSuggestAssignees,
   onToggleSubtask,
   onDeleteSubtask,
@@ -43,20 +83,44 @@ export default function TaskDetailModal({
   onAddComment,
 }) {
   const fileInputRef = useRef(null);
+  const commentFileInputRef = useRef(null);
+  const commentImageInputRef = useRef(null);
+  const toastTimerRef = useRef(null);
+  const isMountedRef = useRef(true);
+  const pendingPreviewUrlRef = useRef(null);
   const [attachments, setAttachments] = useState([]);
   const [uploadingFile, setUploadingFile] = useState(false);
-  const [attachmentError, setAttachmentError] = useState('');
+  const [savingDesc, setSavingDesc] = useState(false);
+  const [sendingComment, setSendingComment] = useState(false);
+  const [pendingCommentFile, setPendingCommentFile] = useState(null);
+  const [rightTab, setRightTab] = useState('comments');
+  const [taskActivities, setTaskActivities] = useState([]);
+  const [historyRefreshTick, setHistoryRefreshTick] = useState(0);
+  const [apiToast, setApiToast] = useState(null);
+
   const taskId = selectedTask?.id;
+  const subList = selectedTask?.subTasks || [];
+  const doneCount = subList.filter((s) => s.status === 4).length;
+  const commentsCount = selectedTask?.comments?.length || 0;
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      if (pendingPreviewUrlRef.current) {
+        URL.revokeObjectURL(pendingPreviewUrlRef.current);
+        pendingPreviewUrlRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!taskId) return undefined;
     let isMounted = true;
     api.get(`/tasks/${taskId}/attachments`)
       .then((res) => {
-        if (isMounted) {
-          setAttachments(res.data || []);
-          setAttachmentError('');
-        }
+        if (isMounted) setAttachments(res.data || []);
       })
       .catch(() => {
         if (isMounted) setAttachments([]);
@@ -66,25 +130,169 @@ export default function TaskDetailModal({
     };
   }, [taskId]);
 
+  useEffect(() => {
+    if (!taskId) return undefined;
+    let isMounted = true;
+    api.get(`/tasks/${taskId}/activities?limit=60`)
+      .then((res) => {
+        if (isMounted) setTaskActivities(res.data || []);
+      })
+      .catch(() => {
+        if (isMounted) setTaskActivities([]);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    taskId,
+    historyRefreshTick,
+    selectedTask?.status,
+    selectedTask?.priority,
+    selectedTask?.assigneeId,
+    selectedTask?.dueDate,
+    selectedTask?.estimatedHours,
+    selectedTask?.actualHours,
+    selectedTask?.description,
+    subList.length,
+    doneCount,
+    commentsCount,
+  ]);
+
   if (!selectedTask) return null;
+
+  const showToast = (type, text, durationMs = 2600) => {
+    if (!isMountedRef.current) return;
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setApiToast({ type, text });
+    if (durationMs > 0) {
+      toastTimerRef.current = setTimeout(() => {
+        if (isMountedRef.current) setApiToast(null);
+      }, durationMs);
+    }
+  };
+
+  const runRealtimePatch = async (patch, successText, rollbackFn) => {
+    showToast('loading', 'Đang lưu thay đổi...', 0);
+    try {
+      const updated = await onPatchTask(patch);
+      if (!isMountedRef.current || !updated) return;
+      showToast('success', successText, 2500);
+    } catch (err) {
+      if (!isMountedRef.current) return;
+      if (rollbackFn) rollbackFn();
+      const msg = err.response?.data?.message || err.message || 'Không thể lưu thay đổi.';
+      showToast('error', `Lỗi lưu: ${msg}`, 4000);
+    }
+  };
+
+  const handleStatusChange = (e) => {
+    const nextStatus = parseInt(e.target.value, 10);
+    const prevStatus = taskEditForm.status;
+    setTaskEditForm((prev) => ({ ...prev, status: nextStatus }));
+    runRealtimePatch(
+      { status: nextStatus },
+      'Đã cập nhật trạng thái công việc',
+      () => setTaskEditForm((prev) => ({ ...prev, status: prevStatus })),
+    );
+  };
+
+  const handlePriorityChange = (e) => {
+    const nextPriority = parseInt(e.target.value, 10);
+    const prevPriority = taskEditForm.priority;
+    setTaskEditForm((prev) => ({ ...prev, priority: nextPriority }));
+    runRealtimePatch(
+      { priority: nextPriority },
+      'Đã cập nhật độ ưu tiên',
+      () => setTaskEditForm((prev) => ({ ...prev, priority: prevPriority })),
+    );
+  };
+
+  const handleAssigneeChange = (nextAssigneeId) => {
+    if ((nextAssigneeId || '') === (selectedTask.assigneeId || '')) return;
+    const prevAssigneeId = taskEditForm.assigneeId;
+    setTaskEditForm((prev) => ({ ...prev, assigneeId: nextAssigneeId }));
+    runRealtimePatch(
+      { assigneeId: nextAssigneeId },
+      'Đã cập nhật người thực hiện',
+      () => setTaskEditForm((prev) => ({ ...prev, assigneeId: prevAssigneeId })),
+    );
+  };
+
+  const isCompleteValidDate = (dateStr) => {
+    if (!dateStr) return true;
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+    if (!match) return false;
+    const year = parseInt(match[1], 10);
+    return year >= 1900 && year <= 2100;
+  };
+
+  const handleDueDateChange = (e) => {
+    const nextDueDate = e.target.value;
+    const prevDueDate = taskEditForm.dueDate;
+    setTaskEditForm((prev) => ({ ...prev, dueDate: nextDueDate }));
+    if (!isCompleteValidDate(nextDueDate)) return;
+    const savedDueDate = selectedTask.dueDate ? selectedTask.dueDate.substring(0, 10) : '';
+    if (nextDueDate === savedDueDate) return;
+    runRealtimePatch(
+      { dueDate: nextDueDate },
+      'Đã cập nhật hạn hoàn thành',
+      () => setTaskEditForm((prev) => ({ ...prev, dueDate: prevDueDate })),
+    );
+  };
+
+  const handleHoursBlur = (field, label) => {
+    const currentVal = normalizeHours(taskEditForm[field]);
+    const savedVal = normalizeHours(selectedTask[field]);
+    if (currentVal === savedVal) return;
+    const fallback = selectedTask[field] ?? '';
+    runRealtimePatch(
+      { [field]: taskEditForm[field] },
+      `Đã cập nhật ${label}`,
+      () => setTaskEditForm((prev) => ({ ...prev, [field]: fallback })),
+    );
+  };
+
+  const handleHoursKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.currentTarget.blur();
+    }
+  };
+
+  const handleSaveDescription = async (e) => {
+    e.preventDefault();
+    setSavingDesc(true);
+    try {
+      await runRealtimePatch(
+        { description: taskEditForm.description },
+        'Đã lưu mô tả công việc',
+      );
+    } finally {
+      if (isMountedRef.current) setSavingDesc(false);
+    }
+  };
 
   const handleUploadAttachment = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
     setUploadingFile(true);
-    setAttachmentError('');
+    showToast('loading', `Đang tải lên "${file.name}"...`, 0);
     try {
       const formData = new FormData();
       formData.append('file', file);
       const res = await api.post(`/tasks/${selectedTask.id}/attachments`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
+      if (!isMountedRef.current) return;
       setAttachments((prev) => [res.data, ...prev]);
+      setHistoryRefreshTick((t) => t + 1);
+      showToast('success', `Đã đính kèm tệp "${res.data.fileName}"`, 2600);
     } catch (err) {
-      setAttachmentError(err.response?.data?.message || 'Không thể tải tệp đính kèm lên.');
+      if (!isMountedRef.current) return;
+      showToast('error', err.response?.data?.message || 'Không thể tải tệp đính kèm lên.', 4000);
     } finally {
-      setUploadingFile(false);
+      if (isMountedRef.current) setUploadingFile(false);
     }
   };
 
@@ -102,57 +310,287 @@ export default function TaskDetailModal({
       document.body.removeChild(link);
       URL.revokeObjectURL(blobUrl);
     } catch {
-      setAttachmentError('Không thể tải xuống tệp đính kèm.');
+      showToast('error', 'Không thể tải xuống tệp đính kèm.', 3500);
     }
   };
 
   const handleDeleteAttachment = async (attId) => {
+    showToast('loading', 'Đang xóa tệp đính kèm...', 0);
     try {
       await api.delete(`/tasks/${selectedTask.id}/attachments/${attId}`);
+      if (!isMountedRef.current) return;
       setAttachments((prev) => prev.filter((a) => a.id !== attId));
-    } catch {
-      setAttachmentError('Không thể xóa tệp đính kèm.');
+      setHistoryRefreshTick((t) => t + 1);
+      showToast('success', 'Đã xóa tệp đính kèm', 2500);
+    } catch (err) {
+      if (!isMountedRef.current) return;
+      showToast('error', err.response?.data?.message || 'Không thể xóa tệp đính kèm.', 4000);
     }
   };
 
-  const subList = selectedTask.subTasks || [];
-  const doneCount = subList.filter((s) => s.status === 4).length;
+  const clearPendingCommentFile = () => {
+    if (pendingPreviewUrlRef.current) {
+      URL.revokeObjectURL(pendingPreviewUrlRef.current);
+      pendingPreviewUrlRef.current = null;
+    }
+    setPendingCommentFile(null);
+  };
+
+  const handleSelectCommentFile = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (pendingPreviewUrlRef.current) {
+      URL.revokeObjectURL(pendingPreviewUrlRef.current);
+      pendingPreviewUrlRef.current = null;
+    }
+    const isImage = file.type && file.type.startsWith('image/');
+    const previewUrl = isImage ? URL.createObjectURL(file) : null;
+    if (previewUrl) pendingPreviewUrlRef.current = previewUrl;
+    setPendingCommentFile({ file, isImage, previewUrl });
+  };
+
+  const handleSubmitComment = async (e) => {
+    e.preventDefault();
+    if (sendingComment) return;
+    const trimmed = commentText.trim();
+    if (!trimmed && !pendingCommentFile) return;
+
+    setSendingComment(true);
+    showToast('loading', pendingCommentFile ? 'Đang tải tệp & gửi bình luận...' : 'Đang gửi bình luận...', 0);
+    try {
+      let uploadedAtt = null;
+      if (pendingCommentFile) {
+        const formData = new FormData();
+        formData.append('file', pendingCommentFile.file);
+        const uploadRes = await api.post(`/tasks/${selectedTask.id}/attachments`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        if (!isMountedRef.current) return;
+        uploadedAtt = uploadRes.data;
+        setAttachments((prev) => [uploadedAtt, ...prev]);
+        setHistoryRefreshTick((t) => t + 1);
+      }
+
+      const finalContent = uploadedAtt
+        ? (trimmed ? `${trimmed}\n[Đính kèm: ${uploadedAtt.fileName}]` : `[Đính kèm: ${uploadedAtt.fileName}]`)
+        : trimmed;
+
+      await onAddComment(null, finalContent);
+      if (!isMountedRef.current) return;
+      clearPendingCommentFile();
+      showToast('success', uploadedAtt ? 'Đã gửi bình luận kèm tệp đính kèm' : 'Đã gửi bình luận', 2500);
+    } catch (err) {
+      if (!isMountedRef.current) return;
+      showToast('error', err.response?.data?.message || 'Không thể gửi bình luận.', 4000);
+    } finally {
+      if (isMountedRef.current) setSendingComment(false);
+    }
+  };
+
   const subPct = subList.length > 0 ? Math.round((doneCount / subList.length) * 100) : 0;
+  const isDescriptionDirty = (taskEditForm.description || '') !== (selectedTask.description || '');
 
   return (
     <div className="modal-backdrop">
       <div className="modal-card task-detail-modal">
-        <div className="detail-modal-header">
-          <div className="detail-title-group">
-            <span className="task-code">{selectedTask.taskCode}</span>
-            <h2>{selectedTask.title}</h2>
+        <div className="detail-modal-header clickup-header">
+          <div className="clickup-breadcrumb">
+            <span className="breadcrumb-project">
+              <span className="project-dot" />
+              {project?.code || 'PROJECT'}
+            </span>
+            <span className="breadcrumb-sep">|</span>
+            <span className="breadcrumb-type">
+              <CheckCircleOutlineIcon style={{ fontSize: 15 }} />
+              Task
+            </span>
+            <span className="breadcrumb-sep">|</span>
+            <span className="breadcrumb-task-code">
+              <span className="code-dot" />
+              {selectedTask.taskCode}
+            </span>
           </div>
           <div className="detail-header-actions">
             <button type="button" onClick={onDeleteTask} className="btn-delete-task">
               <DeleteOutlineOutlinedIcon style={{ fontSize: 16 }} />
               <span>Xóa công việc</span>
             </button>
-            <button onClick={onClose} className="btn-close">
+            <button type="button" onClick={onClose} className="btn-close" aria-label="Đóng">
               <CloseIcon fontSize="small" />
             </button>
           </div>
         </div>
 
-        <div className="detail-modal-split">
+        <div className="detail-modal-split clickup-split">
           <div className="detail-main-pane">
-            <div className="desc-editor-card">
-              <label htmlFor="task-detail-desc">Mô tả công việc</label>
-              <textarea
-                id="task-detail-desc"
-                form="task-detail-meta-form"
-                rows={4}
-                placeholder="Nhập mô tả chi tiết yêu cầu công việc..."
-                value={taskEditForm.description}
-                onChange={(e) => {
-                  setTaskSaveMsg('');
-                  setTaskEditForm({ ...taskEditForm, description: e.target.value });
-                }}
-              />
+            <h2 className="detail-task-title">{selectedTask.title}</h2>
+
+            <div className="clickup-meta-form">
+              <div className="clickup-prop-grid">
+                <div className="prop-row">
+                  <label className="prop-label">Trạng thái</label>
+                  <div className="prop-control">
+                    <select
+                      className={`status-select-pill status-val-${taskEditForm.status}`}
+                      value={taskEditForm.status}
+                      onChange={handleStatusChange}
+                    >
+                      {columns.map((c) => (
+                        <option key={c.id} value={c.id}>{c.title}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="prop-row">
+                  <label className="prop-label">Người thực hiện</label>
+                  <div className="prop-control prop-assignee-control">
+                    <AssigneeSelect
+                      members={project.members || []}
+                      value={taskEditForm.assigneeId}
+                      onChange={handleAssigneeChange}
+                      placeholder="-- Chưa chỉ định --"
+                    />
+                    <button type="button" className="btn-ai-inline" onClick={onSuggestAssignees}>
+                      Gợi ý AI
+                    </button>
+                  </div>
+                </div>
+
+                <div className="prop-row">
+                  <label className="prop-label">Độ ưu tiên</label>
+                  <div className="prop-control">
+                    <select
+                      value={taskEditForm.priority}
+                      onChange={handlePriorityChange}
+                    >
+                      <option value={1}>Thấp</option>
+                      <option value={2}>Trung bình</option>
+                      <option value={3}>Cao</option>
+                      <option value={4}>Khẩn cấp</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="prop-row">
+                  <label className="prop-label">Hạn hoàn thành</label>
+                  <div className="prop-control">
+                    <input
+                      type="date"
+                      value={taskEditForm.dueDate}
+                      onChange={handleDueDateChange}
+                    />
+                  </div>
+                </div>
+
+                <div className="prop-row">
+                  <label className="prop-label">Giờ ước lượng (h)</label>
+                  <div className="prop-control">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      placeholder="0"
+                      value={taskEditForm.estimatedHours}
+                      onChange={(e) => setTaskEditForm((prev) => ({ ...prev, estimatedHours: e.target.value }))}
+                      onBlur={() => handleHoursBlur('estimatedHours', 'giờ ước lượng')}
+                      onKeyDown={handleHoursKeyDown}
+                    />
+                  </div>
+                </div>
+
+                <div className="prop-row">
+                  <label className="prop-label">Giờ thực tế (h)</label>
+                  <div className="prop-control">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      placeholder="0"
+                      value={taskEditForm.actualHours}
+                      onChange={(e) => setTaskEditForm((prev) => ({ ...prev, actualHours: e.target.value }))}
+                      onBlur={() => handleHoursBlur('actualHours', 'giờ thực tế')}
+                      onKeyDown={handleHoursKeyDown}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {assigneeSuggestions.length > 0 && (
+                <div className="ai-assignee-list inline-suggestions">
+                  {assigneeSuggestions.map((s) => {
+                    const suggestedMember = project.members?.find((m) => m.userId === s.userId);
+                    return (
+                      <button
+                        type="button"
+                        key={s.userId}
+                        className={`ai-assignee-chip ${s.isRecommended ? 'recommended' : ''}`}
+                        onClick={() => handleAssigneeChange(s.userId)}
+                      >
+                        <span className="ai-assignee-head">
+                          <UserAvatar
+                            name={s.fullName}
+                            email={suggestedMember?.email}
+                            avatarUrl={suggestedMember?.avatarUrl}
+                            size="xs"
+                          />
+                          <strong>{s.fullName}</strong>
+                        </span>
+                        <span>{s.openTasks} việc mở, {s.openEstimatedHours}h</span>
+                        {s.isRecommended && <em>Ít việc nhất</em>}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {(taskEditForm.estimatedHours !== '' || taskEditForm.actualHours !== '') && (() => {
+                const est = parseFloat(taskEditForm.estimatedHours) || 0;
+                const act = parseFloat(taskEditForm.actualHours) || 0;
+                const isOver = est > 0 && act > est;
+                const pct = est > 0 ? Math.min(Math.round((act / est) * 100), 100) : (act > 0 ? 100 : 0);
+
+                return (
+                  <div className="time-tracking-bar-box">
+                    <div className="time-bar-header">
+                      <span>Thực tế {act}h / Ước lượng {est}h</span>
+                      <span className={`time-status-tag ${isOver ? 'over-budget' : 'within-budget'}`}>
+                        {isOver ? `Vượt +${(act - est).toFixed(1)}h` : 'Trong định mức'}
+                      </span>
+                    </div>
+                    <div className="time-bar-track">
+                      <div
+                        className={`time-bar-fill ${isOver ? 'over-budget' : 'within-budget'}`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <form onSubmit={handleSaveDescription} className="desc-editor-card">
+                <div className="desc-header-row">
+                  <label htmlFor="task-detail-desc">Mô tả</label>
+                  {isDescriptionDirty && <span className="desc-unsaved-badge">Chưa lưu</span>}
+                </div>
+                <textarea
+                  id="task-detail-desc"
+                  rows={4}
+                  placeholder="Nhập mô tả chi tiết yêu cầu công việc..."
+                  value={taskEditForm.description}
+                  onChange={(e) => setTaskEditForm((prev) => ({ ...prev, description: e.target.value }))}
+                />
+                <div className="clickup-save-bar">
+                  <button
+                    type="submit"
+                    className="btn-primary btn-save-desc"
+                    disabled={savingDesc || !isDescriptionDirty}
+                  >
+                    {savingDesc ? 'Đang lưu...' : 'Lưu mô tả'}
+                  </button>
+                </div>
+              </form>
             </div>
 
             <div className="subtasks-section">
@@ -252,8 +690,6 @@ export default function TaskDetailModal({
                 </button>
               </div>
 
-              {attachmentError && <p className="ai-error-text">{attachmentError}</p>}
-
               {attachments.length === 0 ? (
                 <p className="attachments-empty">Chưa có tệp đính kèm nào (hỗ trợ PDF, ảnh, Word, Excel, ZIP tối đa 10 MB).</p>
               ) : (
@@ -287,205 +723,191 @@ export default function TaskDetailModal({
                 </div>
               )}
             </div>
-
-            <div className="comments-section">
-              <h3><ChatBubbleOutlineOutlinedIcon fontSize="small" /> Thảo Luận & Ghi Chú ({selectedTask.comments?.length || 0})</h3>
-
-              <div className="comments-list">
-                {selectedTask.comments?.map((c) => {
-                  const commentMember = project.members?.find((m) => m.userId === c.userId);
-                  return (
-                    <div key={c.id} className="comment-item">
-                      <div className="comment-user">
-                        <span className="comment-author-wrap">
-                          <UserAvatar
-                            name={c.userFullName}
-                            email={commentMember?.email}
-                            avatarUrl={commentMember?.avatarUrl}
-                            size="xs"
-                          />
-                          <strong>{c.userFullName}</strong>
-                        </span>
-                        <span>{new Date(c.createdAt).toLocaleTimeString('vi-VN')} {new Date(c.createdAt).toLocaleDateString('vi-VN')}</span>
-                      </div>
-                      <p className="comment-body">{c.content}</p>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <form onSubmit={onAddComment} className="comment-form">
-                <input
-                  type="text"
-                  placeholder="Viết bình luận, phản hồi công việc..."
-                  value={commentText}
-                  onChange={(e) => setCommentText(e.target.value)}
-                />
-                <button type="submit" className="btn-primary">Gửi</button>
-              </form>
-            </div>
           </div>
 
-          <aside className="detail-sidebar-pane">
-            <form id="task-detail-meta-form" onSubmit={onSaveTaskDetail} className="task-meta-editor">
-              <div className="sidebar-section-title">Thuộc tính công việc</div>
+          <aside className="detail-activity-pane">
+            <div className="activity-pane-tabs">
+              <button
+                type="button"
+                className={`activity-tab-btn ${rightTab === 'comments' ? 'active' : ''}`}
+                onClick={() => setRightTab('comments')}
+              >
+                <span>THẢO LUẬN</span>
+                <span className="tab-count">{commentsCount}</span>
+              </button>
+              <button
+                type="button"
+                className={`activity-tab-btn ${rightTab === 'history' ? 'active' : ''}`}
+                onClick={() => setRightTab('history')}
+              >
+                <span>NHẬT KÝ</span>
+                <span className="tab-count">{taskActivities.length}</span>
+              </button>
+            </div>
 
-              <div className="meta-row-2">
-                <div className="meta-field">
-                  <label>Trạng thái</label>
-                  <select
-                    value={taskEditForm.status}
-                    onChange={(e) => {
-                      setTaskSaveMsg('');
-                      setTaskEditForm({ ...taskEditForm, status: parseInt(e.target.value, 10) });
-                    }}
-                  >
-                    {columns.map((c) => (
-                      <option key={c.id} value={c.id}>{c.title}</option>
-                    ))}
-                  </select>
+            {rightTab === 'comments' ? (
+              <div className="activity-comments-wrap">
+                <div className="activity-pane-body">
+                  {commentsCount === 0 ? (
+                    <div className="activity-empty-state">
+                      <p>Chưa có bình luận nào cho công việc này.</p>
+                      <span>Bắt đầu trao đổi với nhóm ở ô bên dưới.</span>
+                    </div>
+                  ) : (
+                    <div className="clickup-comments-list">
+                      {selectedTask.comments.map((c) => {
+                        const commentMember = project.members?.find((m) => m.userId === c.userId);
+                        return (
+                          <div key={c.id} className="clickup-comment-row">
+                            <UserAvatar
+                              name={c.userFullName}
+                              email={commentMember?.email}
+                              avatarUrl={commentMember?.avatarUrl}
+                              size="sm"
+                            />
+                            <div className="clickup-comment-content">
+                              <div className="clickup-comment-meta">
+                                <strong>{c.userFullName}</strong>
+                                <span>{formatDateTime(c.createdAt)}</span>
+                              </div>
+                              <div className="clickup-comment-bubble">
+                                <p>{c.content}</p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
-                <div className="meta-field">
-                  <label>Độ ưu tiên</label>
-                  <select
-                    value={taskEditForm.priority}
-                    onChange={(e) => {
-                      setTaskSaveMsg('');
-                      setTaskEditForm({ ...taskEditForm, priority: parseInt(e.target.value, 10) });
-                    }}
-                  >
-                    <option value={1}>Thấp</option>
-                    <option value={2}>Trung bình</option>
-                    <option value={3}>Cao</option>
-                    <option value={4}>Khẩn cấp</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="meta-field">
-                <label>Người thực hiện (Assignee)</label>
-                <AssigneeSelect
-                  members={project.members || []}
-                  value={taskEditForm.assigneeId}
-                  onChange={(val) => {
-                    setTaskSaveMsg('');
-                    setTaskEditForm({ ...taskEditForm, assigneeId: val });
-                  }}
-                  placeholder="-- Chưa chỉ định --"
-                />
-                <button type="button" className="btn-ai-inline" onClick={onSuggestAssignees}>
-                  Gợi ý người nhận việc
-                </button>
-                {assigneeSuggestions.length > 0 && (
-                  <div className="ai-assignee-list">
-                    {assigneeSuggestions.map((s) => {
-                      const suggestedMember = project.members?.find((m) => m.userId === s.userId);
-                      return (
+                <form onSubmit={handleSubmitComment} className="activity-pane-composer">
+                  <input
+                    ref={commentImageInputRef}
+                    type="file"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={handleSelectCommentFile}
+                  />
+                  <input
+                    ref={commentFileInputRef}
+                    type="file"
+                    style={{ display: 'none' }}
+                    onChange={handleSelectCommentFile}
+                  />
+                  <div className="composer-unified-box">
+                    {pendingCommentFile && (
+                      <div className="composer-pending-file">
+                        {pendingCommentFile.isImage && pendingCommentFile.previewUrl ? (
+                          <img
+                            src={pendingCommentFile.previewUrl}
+                            alt={pendingCommentFile.file.name}
+                            className="pending-file-thumb"
+                          />
+                        ) : (
+                          <AttachFileOutlinedIcon style={{ fontSize: 16, color: '#2563eb' }} />
+                        )}
+                        <div className="pending-file-meta">
+                          <strong title={pendingCommentFile.file.name}>{pendingCommentFile.file.name}</strong>
+                          <span>{formatFileSize(pendingCommentFile.file.size)}</span>
+                        </div>
                         <button
                           type="button"
-                          key={s.userId}
-                          className={`ai-assignee-chip ${s.isRecommended ? 'recommended' : ''}`}
-                          onClick={() => {
-                            setTaskSaveMsg('');
-                            setTaskEditForm({ ...taskEditForm, assigneeId: s.userId });
-                          }}
+                          className="btn-clear-pending"
+                          title="Bỏ tệp đính kèm"
+                          onClick={clearPendingCommentFile}
                         >
-                          <span className="ai-assignee-head">
-                            <UserAvatar
-                              name={s.fullName}
-                              email={suggestedMember?.email}
-                              avatarUrl={suggestedMember?.avatarUrl}
-                              size="xs"
-                            />
-                            <strong>{s.fullName}</strong>
-                          </span>
-                          <span>{s.openTasks} việc mở, {s.openEstimatedHours}h</span>
-                          {s.isRecommended && <em>Ít việc nhất</em>}
+                          <CloseIcon style={{ fontSize: 14 }} />
                         </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              <div className="meta-field">
-                <label>Hạn hoàn thành</label>
-                <input
-                  type="date"
-                  value={taskEditForm.dueDate}
-                  onChange={(e) => {
-                    setTaskSaveMsg('');
-                    setTaskEditForm({ ...taskEditForm, dueDate: e.target.value });
-                  }}
-                />
-              </div>
-
-              <div className="meta-row-2">
-                <div className="meta-field">
-                  <label>Giờ ước lượng (h)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.5"
-                    placeholder="0"
-                    value={taskEditForm.estimatedHours}
-                    onChange={(e) => {
-                      setTaskSaveMsg('');
-                      setTaskEditForm({ ...taskEditForm, estimatedHours: e.target.value });
-                    }}
-                  />
-                </div>
-
-                <div className="meta-field">
-                  <label>Giờ thực tế (h)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.5"
-                    placeholder="0"
-                    value={taskEditForm.actualHours}
-                    onChange={(e) => {
-                      setTaskSaveMsg('');
-                      setTaskEditForm({ ...taskEditForm, actualHours: e.target.value });
-                    }}
-                  />
-                </div>
-              </div>
-
-              {(taskEditForm.estimatedHours !== '' || taskEditForm.actualHours !== '') && (() => {
-                const est = parseFloat(taskEditForm.estimatedHours) || 0;
-                const act = parseFloat(taskEditForm.actualHours) || 0;
-                const isOver = est > 0 && act > est;
-                const pct = est > 0 ? Math.min(Math.round((act / est) * 100), 100) : (act > 0 ? 100 : 0);
-
-                return (
-                  <div className="time-tracking-bar-box">
-                    <div className="time-bar-header">
-                      <span>Thực tế {act}h / Ước lượng {est}h</span>
-                      <span className={`time-status-tag ${isOver ? 'over-budget' : 'within-budget'}`}>
-                        {isOver ? `Vượt +${(act - est).toFixed(1)}h` : 'Trong định mức'}
-                      </span>
-                    </div>
-                    <div className="time-bar-track">
-                      <div
-                        className={`time-bar-fill ${isOver ? 'over-budget' : 'within-budget'}`}
-                        style={{ width: `${pct}%` }}
+                      </div>
+                    )}
+                    <div className="composer-input-row">
+                      <input
+                        type="text"
+                        placeholder="Ghi chú, phản hồi công việc..."
+                        value={commentText}
+                        onChange={(e) => setCommentText(e.target.value)}
+                        disabled={sendingComment}
                       />
+                      <div className="composer-inline-actions">
+                        <button
+                          type="button"
+                          className="btn-composer-tool"
+                          title="Đính kèm hình ảnh"
+                          disabled={sendingComment}
+                          onClick={() => commentImageInputRef.current?.click()}
+                        >
+                          <ImageOutlinedIcon style={{ fontSize: 18 }} />
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-composer-tool"
+                          title="Đính kèm tập tin"
+                          disabled={sendingComment}
+                          onClick={() => commentFileInputRef.current?.click()}
+                        >
+                          <AttachFileOutlinedIcon style={{ fontSize: 18 }} />
+                        </button>
+                        <button
+                          type="submit"
+                          className="btn-send-comment"
+                          title="Gửi bình luận"
+                          disabled={sendingComment || (!commentText.trim() && !pendingCommentFile)}
+                        >
+                          <SendOutlinedIcon style={{ fontSize: 16 }} />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                );
-              })()}
-
-              <div className="meta-editor-footer">
-                {taskSaveMsg && <span className="save-feedback">{taskSaveMsg}</span>}
-                <button type="submit" className="btn-primary btn-save-task">
-                  Lưu Cập Nhật Công Việc
-                </button>
+                </form>
               </div>
-            </form>
+            ) : (
+              <div className="activity-history-wrap">
+                <div className="activity-pane-body">
+                  {taskActivities.length === 0 ? (
+                    <div className="activity-empty-state">
+                      <HistoryIcon style={{ fontSize: 28, color: '#94a3b8' }} />
+                      <p>Chưa có nhật ký chỉnh sửa nào.</p>
+                      <span>Mọi thay đổi về trạng thái, người thực hiện, hạn chót, việc con hoặc tệp đính kèm sẽ tự động được ghi lại tại đây.</span>
+                    </div>
+                  ) : (
+                    <div className="task-history-timeline">
+                      {taskActivities.map((act) => {
+                        const badge = getActionMeta(act.action);
+                        return (
+                          <div key={act.id} className="task-history-item">
+                            <UserAvatar
+                              name={act.actorName}
+                              avatarUrl={act.actorAvatarUrl}
+                              size="sm"
+                            />
+                            <div className="history-item-body">
+                              <div className="history-item-header">
+                                <strong>{act.actorName}</strong>
+                                <span className={`history-action-tag tone-${badge.tone}`}>{badge.label}</span>
+                              </div>
+                              <p className="history-item-desc">{act.description}</p>
+                              <span className="history-item-time">{formatDateTime(act.createdAt)}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </aside>
         </div>
+
+        {apiToast && (
+          <div className={`task-api-toast is-${apiToast.type}`} role="status" aria-live="polite">
+            {apiToast.type === 'success' && <CheckCircleOutlineIcon style={{ fontSize: 17 }} />}
+            {apiToast.type === 'error' && <ErrorOutlineIcon style={{ fontSize: 17 }} />}
+            {apiToast.type === 'loading' && <span className="toast-spinner" />}
+            <span>{apiToast.text}</span>
+          </div>
+        )}
       </div>
     </div>
   );

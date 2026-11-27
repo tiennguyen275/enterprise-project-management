@@ -108,6 +108,8 @@ export default function ProjectDetail() {
   const [kanbanPriority, setKanbanPriority] = useState('ALL');
 
   const [selectedTask, setSelectedTask] = useState(null);
+  const selectedTaskRef = useRef(null);
+  const patchQueueRef = useRef(Promise.resolve());
   const [taskEditForm, setTaskEditForm] = useState({
     title: '',
     description: '',
@@ -118,7 +120,6 @@ export default function ProjectDetail() {
     actualHours: '',
     assigneeId: ''
   });
-  const [taskSaveMsg, setTaskSaveMsg] = useState('');
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [commentText, setCommentText] = useState('');
   const [aiInsight, setAiInsight] = useState(null);
@@ -143,9 +144,9 @@ export default function ProjectDetail() {
   const [newDep, setNewDep] = useState({ predecessorTaskId: '', successorTaskId: '', lagDays: 0 });
   const [depError, setDepError] = useState('');
 
-  const fetchProjectData = async () => {
+  const fetchProjectData = async ({ silent = false } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const params = new URLSearchParams();
       if (timeframeFilter.startDate) params.append('startDate', timeframeFilter.startDate);
       if (timeframeFilter.endDate) params.append('endDate', timeframeFilter.endDate);
@@ -170,7 +171,7 @@ export default function ProjectDetail() {
     } catch (err) {
       console.error('Lỗi tải dữ liệu dự án:', err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -600,7 +601,6 @@ export default function ProjectDetail() {
     api.get(`/tasks/${requestedTaskId}`)
       .then((res) => {
         if (!isMounted || !res.data) return;
-        setTaskSaveMsg('');
         setNewSubtaskTitle('');
         setSubtaskSuggestions([]);
         setSuggestionError('');
@@ -619,7 +619,6 @@ export default function ProjectDetail() {
 
   const handleOpenTaskDetail = async (taskId) => {
     try {
-      setTaskSaveMsg('');
       setNewSubtaskTitle('');
       setSubtaskSuggestions([]);
       setSuggestionError('');
@@ -632,28 +631,59 @@ export default function ProjectDetail() {
     }
   };
 
-  const handleSaveTaskDetail = async (e) => {
-    e.preventDefault();
-    if (!selectedTask) return;
-    try {
-      setTaskSaveMsg('');
-      const res = await api.put(`/tasks/${selectedTask.id}`, {
-        title: taskEditForm.title,
-        description: taskEditForm.description,
-        status: parseInt(taskEditForm.status),
-        priority: parseInt(taskEditForm.priority),
-        dueDate: taskEditForm.dueDate ? new Date(taskEditForm.dueDate).toISOString() : null,
-        estimatedHours: taskEditForm.estimatedHours !== '' ? parseFloat(taskEditForm.estimatedHours) : null,
-        actualHours: taskEditForm.actualHours !== '' ? parseFloat(taskEditForm.actualHours) : null,
-        assigneeId: taskEditForm.assigneeId || null
-      });
-      setSelectedTask(res.data);
-      syncTaskEditForm(res.data);
-      setTaskSaveMsg('Đã lưu cập nhật!');
-      fetchProjectData();
-    } catch (err) {
-      alert('Không thể cập nhật công việc: ' + (err.response?.data?.message || err.message));
-    }
+  useEffect(() => {
+    selectedTaskRef.current = selectedTask;
+  }, [selectedTask]);
+
+  const handlePatchTask = (patch) => {
+    const targetTaskId = selectedTaskRef.current?.id;
+    if (!targetTaskId) return Promise.resolve(null);
+
+    const runPatch = async () => {
+      const base = selectedTaskRef.current;
+      if (!base || base.id !== targetTaskId) return null;
+      const payload = {
+        title: patch.title !== undefined ? patch.title : base.title,
+        description: patch.description !== undefined ? patch.description : (base.description || ''),
+        status: patch.status !== undefined ? parseInt(patch.status, 10) : base.status,
+        priority: patch.priority !== undefined ? parseInt(patch.priority, 10) : base.priority,
+        dueDate: patch.dueDate !== undefined
+          ? (patch.dueDate ? new Date(patch.dueDate).toISOString() : null)
+          : (base.dueDate || null),
+        estimatedHours: patch.estimatedHours !== undefined
+          ? (patch.estimatedHours !== '' && patch.estimatedHours !== null ? parseFloat(patch.estimatedHours) : null)
+          : (base.estimatedHours ?? null),
+        actualHours: patch.actualHours !== undefined
+          ? (patch.actualHours !== '' && patch.actualHours !== null ? parseFloat(patch.actualHours) : null)
+          : (base.actualHours ?? null),
+        assigneeId: patch.assigneeId !== undefined
+          ? (patch.assigneeId || null)
+          : (base.assigneeId || null),
+      };
+      const res = await api.put(`/tasks/${targetTaskId}`, payload);
+      setTasks((prev) => prev.map((t) => (t.id === targetTaskId ? { ...t, ...res.data } : t)));
+      if (selectedTaskRef.current?.id === targetTaskId) {
+        selectedTaskRef.current = res.data;
+        setSelectedTask(res.data);
+        setTaskEditForm((prev) => ({
+          ...prev,
+          ...(patch.title !== undefined ? { title: res.data.title || '' } : {}),
+          ...(patch.description !== undefined ? { description: res.data.description || '' } : {}),
+          ...(patch.status !== undefined ? { status: res.data.status || 1 } : {}),
+          ...(patch.priority !== undefined ? { priority: res.data.priority || 2 } : {}),
+          ...(patch.dueDate !== undefined ? { dueDate: res.data.dueDate ? res.data.dueDate.substring(0, 10) : '' } : {}),
+          ...(patch.estimatedHours !== undefined ? { estimatedHours: res.data.estimatedHours ?? '' } : {}),
+          ...(patch.actualHours !== undefined ? { actualHours: res.data.actualHours ?? '' } : {}),
+          ...(patch.assigneeId !== undefined ? { assigneeId: res.data.assigneeId || '' } : {}),
+        }));
+      }
+      fetchProjectData({ silent: true });
+      return res.data;
+    };
+
+    const queued = patchQueueRef.current.then(runPatch, runPatch);
+    patchQueueRef.current = queued.catch(() => {});
+    return queued;
   };
 
   const handleDeleteTask = async () => {
@@ -778,22 +808,20 @@ export default function ProjectDetail() {
     }
   };
 
-  const handleAddComment = async (e) => {
-    e.preventDefault();
-    if (!commentText.trim() || !selectedTask) return;
-    try {
-      const res = await api.post(`/tasks/${selectedTask.id}/comments`, { content: commentText });
-      const updatedComments = [...(selectedTask.comments || []), res.data];
-      setSelectedTask(prev => ({
-        ...prev,
-        comments: updatedComments
-      }));
-      setTasks(prev => prev.map(t => t.id === selectedTask.id ? { ...t, comments: updatedComments } : t));
+  const handleAddComment = async (e, overrideContent = null) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const content = (overrideContent !== null ? overrideContent : commentText).trim();
+    const targetTask = selectedTaskRef.current;
+    if (!content || !targetTask) return false;
+    const res = await api.post(`/tasks/${targetTask.id}/comments`, { content });
+    if (selectedTaskRef.current?.id === targetTask.id) {
+      const updatedComments = [...(selectedTaskRef.current.comments || []), res.data];
+      selectedTaskRef.current = { ...selectedTaskRef.current, comments: updatedComments };
+      setSelectedTask((prev) => (prev && prev.id === targetTask.id ? { ...prev, comments: updatedComments } : prev));
+      setTasks((prev) => prev.map((t) => (t.id === targetTask.id ? { ...t, comments: updatedComments } : t)));
       setCommentText('');
-    } catch (err) {
-      console.error('Lỗi gửi bình luận:', err);
-      alert('Không thể gửi bình luận.');
     }
+    return true;
   };
 
   if (loading) {
@@ -1425,8 +1453,6 @@ export default function ProjectDetail() {
           columns={COLUMNS}
           taskEditForm={taskEditForm}
           setTaskEditForm={setTaskEditForm}
-          taskSaveMsg={taskSaveMsg}
-          setTaskSaveMsg={setTaskSaveMsg}
           assigneeSuggestions={assigneeSuggestions}
           newSubtaskTitle={newSubtaskTitle}
           setNewSubtaskTitle={setNewSubtaskTitle}
@@ -1435,9 +1461,12 @@ export default function ProjectDetail() {
           subtaskSuggestions={subtaskSuggestions}
           commentText={commentText}
           setCommentText={setCommentText}
-          onClose={() => setSelectedTask(null)}
+          onClose={() => {
+            selectedTaskRef.current = null;
+            setSelectedTask(null);
+          }}
           onDeleteTask={handleDeleteTask}
-          onSaveTaskDetail={handleSaveTaskDetail}
+          onPatchTask={handlePatchTask}
           onSuggestAssignees={handleSuggestAssignees}
           onToggleSubtask={handleToggleSubtask}
           onDeleteSubtask={handleDeleteSubtask}
